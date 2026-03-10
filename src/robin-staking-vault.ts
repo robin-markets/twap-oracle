@@ -1,6 +1,7 @@
 import { BigInt, Bytes } from "@graphprotocol/graph-ts";
 import {
   MarketInitialized,
+  MarketFinalized,
   TwapUpdated,
 } from "../generated/RobinStakingVault/RobinStakingVault";
 import { Condition, TokenIndex } from "../generated/schema";
@@ -91,6 +92,45 @@ export function handleMarketInitialized(event: MarketInitialized): void {
     token1Index.robinIsYes = true;
   } else if (condition.token1Id.equals(noTokenId)) {
     token1Index.robinIsYes = false;
+  }
+  token1Index.save();
+}
+
+export function handleMarketFinalized(event: MarketFinalized): void {
+  const conditionId = event.params.conditionId;
+  const condition = Condition.load(conditionId);
+  if (!condition) {
+    return;
+  }
+
+  const marketEndedAt = event.params.marketEndedAt;
+  const marketEndYesPrice = event.params.marketEndYesPrice;
+  const priceScale = BigInt.fromI32(1000000);
+  const marketEndNoPrice = priceScale.minus(marketEndYesPrice);
+
+  const token0Index = getOrCreateTokenIndex(
+    conditionId,
+    condition.token0Id,
+    event.block.timestamp
+  );
+  token0Index.robinResolvedAt = marketEndedAt;
+  if (token0Index.robinIsYes === false) {
+    token0Index.robinResolvedPrice = marketEndNoPrice;
+  } else {
+    token0Index.robinResolvedPrice = marketEndYesPrice;
+  }
+  token0Index.save();
+
+  const token1Index = getOrCreateTokenIndex(
+    conditionId,
+    condition.token1Id,
+    event.block.timestamp
+  );
+  token1Index.robinResolvedAt = marketEndedAt;
+  if (token1Index.robinIsYes === false) {
+    token1Index.robinResolvedPrice = marketEndNoPrice;
+  } else {
+    token1Index.robinResolvedPrice = marketEndYesPrice;
   }
   token1Index.save();
 }

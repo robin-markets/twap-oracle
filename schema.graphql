@@ -20,4 +20,6 @@ type TokenIndex @entity(immutable: false) {
   robinInitializedAt: BigInt
   twapIndexAtRobinInitializedAt: BigInt
   robinIsYes: Boolean
+  robinResolvedAt: BigInt
+  robinResolvedPrice: BigInt
 }

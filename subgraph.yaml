@@ -66,6 +66,8 @@ dataSources:
         - name: RobinStakingVault
           file: ./abis/RobinStakingVault.json
       eventHandlers:
+        - event: MarketFinalized(indexed bytes32,uint256,uint256)
+          handler: handleMarketFinalized
         - event: MarketInitialized(indexed bytes32,uint256,uint256,bool)
           handler: handleMarketInitialized
         - event: TwapUpdated(indexed bytes32,uint256,uint256)
