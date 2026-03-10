@@ -1,6 +1,9 @@
 import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
 import { CTFExchange, OrderFilled } from "../generated/CTFExchange/CTFExchange";
-import { OrderFilled as NegRiskOrderFilled } from "../generated/NegRiskCTFExchange/NegRiskCTFExchange";
+import {
+  NegRiskCTFExchange,
+  OrderFilled as NegRiskOrderFilled,
+} from "../generated/NegRiskCTFExchange/NegRiskCTFExchange";
 import { ConditionalTokens } from "../generated/ConditionalTokens/ConditionalTokens";
 import { TokenIndex } from "../generated/schema";
 import {
@@ -87,10 +90,14 @@ function ensureTokenIndexes(
 
 function getConditionId(
   contractAddress: Address,
-  tokenId: BigInt
+  tokenId: BigInt,
+  isNegRisk: boolean
 ): Bytes | null {
   const contract = CTFExchange.bind(contractAddress); //Should work for NegRisk and non-NegRisk
-  const conditionResult = contract.try_getConditionId(tokenId);
+  const negRiskContract = NegRiskCTFExchange.bind(contractAddress);
+  const conditionResult = isNegRisk
+    ? negRiskContract.try_getConditionId(tokenId)
+    : contract.try_getConditionId(tokenId);
   let conditionId: Bytes | null = null;
   if (!conditionResult.reverted) conditionId = conditionResult.value;
   return conditionId;
@@ -125,7 +132,7 @@ function processOrderFilled(
     return;
   }
 
-  const conditionId = getConditionId(eventAddress, tokenId);
+  const conditionId = getConditionId(eventAddress, tokenId, isNegRisk);
   if (conditionId === null) {
     return;
   }
