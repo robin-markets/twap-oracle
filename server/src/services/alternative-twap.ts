@@ -9,6 +9,8 @@ import {
   type TwapData,
 } from "../types.js";
 
+const CLOB_CONCURRENCY = 15;
+
 export interface AlternativeTwapResult {
   twapData: TwapData;
   usedPolymarketSpot: boolean;
@@ -183,35 +185,38 @@ export async function computeAlternativeTwapDataBatch(
   const polymarketInfoMap =
     await polymarket.getMarketInfoBatch(needsPolymarket);
 
-  // 4. Compute for each remaining market (getTwapData calls run concurrently)
-  const settled = await Promise.allSettled(
-    needsPolymarket.map(async (id) => {
-      const rpcData = rpcBatch.get(id as Hex)!;
-      const marketInfo = polymarketInfoMap.get(id); // undefined if not found/unreachable
-      const result = await computeAlternativeTwapData(
-        id,
-        endTimestamp,
-        rpcData.state,
-        marketInfo,
-        polymarket,
-      );
-      return [id, result] as const;
-    }),
-  );
+  // 4. Compute for each remaining market (getTwapData calls run in chunks)
+  for (let i = 0; i < needsPolymarket.length; i += CLOB_CONCURRENCY) {
+    const chunk = needsPolymarket.slice(i, i + CLOB_CONCURRENCY);
+    const settled = await Promise.allSettled(
+      chunk.map(async (id) => {
+        const rpcData = rpcBatch.get(id as Hex)!;
+        const marketInfo = polymarketInfoMap.get(id); // undefined if not found/unreachable
+        const result = await computeAlternativeTwapData(
+          id,
+          endTimestamp,
+          rpcData.state,
+          marketInfo,
+          polymarket,
+        );
+        return [id, result] as const;
+      }),
+    );
 
-  for (let i = 0; i < settled.length; i++) {
-    const entry = settled[i];
-    if (entry.status === "fulfilled") {
-      const [id, result] = entry.value;
-      results.set(id, result);
-    } else {
-      const id = needsPolymarket[i];
-      failed.set(
-        id,
-        entry.reason instanceof Error
-          ? entry.reason.message
-          : String(entry.reason),
-      );
+    for (let j = 0; j < settled.length; j++) {
+      const entry = settled[j];
+      if (entry.status === "fulfilled") {
+        const [id, result] = entry.value;
+        results.set(id, result);
+      } else {
+        const id = chunk[j];
+        failed.set(
+          id,
+          entry.reason instanceof Error
+            ? entry.reason.message
+            : String(entry.reason),
+        );
+      }
     }
   }
 
