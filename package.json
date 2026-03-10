@@ -1,13 +1,13 @@
 {
-  "name": "poly-ctf-test",
+  "name": "polymarket-ctf-test",
   "license": "UNLICENSED",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ poly-ctf-test",
-    "create-local": "graph create --node http://localhost:8020/ poly-ctf-test",
-    "remove-local": "graph remove --node http://localhost:8020/ poly-ctf-test",
-    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 poly-ctf-test",
+    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ polymarket-ctf-test",
+    "create-local": "graph create --node http://localhost:8020/ polymarket-ctf-test",
+    "remove-local": "graph remove --node http://localhost:8020/ polymarket-ctf-test",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 polymarket-ctf-test",
     "test": "graph test"
   },
   "dependencies": {
