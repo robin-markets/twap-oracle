@@ -8,11 +8,8 @@ import {
   type TwapData,
 } from "../types.js";
 
-const DEFAULT_PRICE = PRICE_SCALE / 2n;
-
 export interface AlternativeTwapResult {
   twapData: TwapData;
-  usedDefaultPrice: boolean;
   usedPolymarketSpot: boolean;
 }
 
@@ -20,7 +17,7 @@ export interface AlternativeTwapResult {
  * Compute TwapData for a single market from pre-loaded data.
  * Needs polymarket only for the per-market getTwapData (CLOB price history) call.
  *
- * @param marketInfo - undefined when Polymarket was unreachable (uses DEFAULT_PRICE)
+ * @param marketInfo - undefined when Polymarket was unreachable
  */
 async function computeAlternativeTwapData(
   conditionId: string,
@@ -36,22 +33,10 @@ async function computeAlternativeTwapData(
       ? state.lastTwapUpdate
       : state.marketInitTimestamp;
 
-  // Polymarket unreachable — use DEFAULT_PRICE
-  //TODO don't use DEFAULT_PRICE here
   if (marketInfo === undefined) {
-    return {
-      twapData: {
-        required: true,
-        conditionId: hex,
-        startTimestamp,
-        endTimestamp,
-        twapPriceYes: DEFAULT_PRICE,
-        marketEndedAt: state.marketEndedAt,
-        marketEndYesPrice: state.marketEndYesPrice,
-      },
-      usedDefaultPrice: true,
-      usedPolymarketSpot: false,
-    };
+    throw new Error(
+      `Cannot compute TWAP for market ${conditionId}: Polymarket data unavailable and subgraph is down`,
+    );
   }
 
   // Clamp endTimestamp to market resolution time if resolved on Polymarket
@@ -122,7 +107,6 @@ async function computeAlternativeTwapData(
       marketEndedAt,
       marketEndYesPrice,
     },
-    usedDefaultPrice: false,
     usedPolymarketSpot,
   };
 }
@@ -163,7 +147,6 @@ export async function computeAlternativeTwapDataBatch(
           marketEndedAt: 0n,
           marketEndYesPrice: 0n,
         },
-        usedDefaultPrice: false,
         usedPolymarketSpot: false,
       });
     } else {
@@ -174,12 +157,8 @@ export async function computeAlternativeTwapDataBatch(
   if (needsPolymarket.length === 0) return results;
 
   // 3. Batch Polymarket
-  let polymarketInfoMap = new Map<string, PolymarketMarketInfo>();
-  try {
-    polymarketInfoMap = await polymarket.getMarketInfoBatch(needsPolymarket);
-  } catch {
-    // All will use DEFAULT_PRICE — caller handles notification
-  }
+  const polymarketInfoMap =
+    await polymarket.getMarketInfoBatch(needsPolymarket);
 
   // 4. Compute for each remaining market (getTwapData calls run concurrently)
   const entries = await Promise.all(

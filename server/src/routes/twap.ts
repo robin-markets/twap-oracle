@@ -26,6 +26,7 @@ import {
 const BYTES32_REGEX = /^0x[0-9a-f]{64}$/i;
 const MAX_CONDITION_IDS = 50;
 
+//TODO build the api in a way where the caller knows which conditionIds failed in case. So the user can remove that specific market in case of complete failure.
 export function createTwapRouter(config: Config): Router {
   const router = Router();
   const polymarket = new PolymarketDataSource();
@@ -165,11 +166,7 @@ async function handleCompleteFailure(
   );
 
   for (const [id, result] of altResults) {
-    if (result.usedDefaultPrice) {
-      sendNotification(
-        `[ALERT] Market ${id}: subgraph down + Polymarket unreachable, used DEFAULT_PRICE (50%)`,
-      ).catch(() => {});
-    } else if (result.usedPolymarketSpot) {
+    if (result.usedPolymarketSpot) {
       sendNotification(
         `[WARN] Market ${id}: subgraph down, used Polymarket spot price (CLOB TWAP unavailable)`,
       ).catch(() => {});
@@ -257,11 +254,7 @@ async function handleSubgraphData(
 
     for (const [id, result] of altResults) {
       altTwapMap.set(id, result.twapData);
-      if (result.usedDefaultPrice) {
-        sendNotification(
-          `[ALERT] Market ${id}: subgraph missing + Polymarket unreachable, used DEFAULT_PRICE (50%)`,
-        ).catch(() => {});
-      } else if (result.usedPolymarketSpot) {
+      if (result.usedPolymarketSpot) {
         sendNotification(
           `[WARN] Market ${id}: subgraph missing, used Polymarket spot price (CLOB TWAP unavailable)`,
         ).catch(() => {});

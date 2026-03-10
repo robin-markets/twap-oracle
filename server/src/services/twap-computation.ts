@@ -1,5 +1,10 @@
 import type { Hex } from "viem";
-import { PRICE_SCALE, type SubgraphMarket, type TwapData } from "../types.js";
+import {
+  PRICE_SCALE,
+  TwapError,
+  type SubgraphMarket,
+  type TwapData,
+} from "../types.js";
 
 const DEFAULT_PRICE = PRICE_SCALE / 2n; // 500_000 = 50%
 
@@ -44,7 +49,6 @@ export function computeTwapData(
   fallbackPrice?: bigint,
 ): TwapData {
   const conditionId = market.id as Hex;
-  const fallback = fallbackPrice ?? DEFAULT_PRICE;
 
   // If Robin already resolved this market, no TWAP is needed.
   // The contract uses the fixed resolved price going forward.
@@ -70,6 +74,8 @@ export function computeTwapData(
 
   // If timeDelta is zero or negative, use lastPrice if available, otherwise fallback
   if (timeDelta <= 0n) {
+    //Usage of DEFAULT PRICE here is ok because it's only for small deltas
+    const fallback = fallbackPrice ?? DEFAULT_PRICE;
     const price =
       market.yesToken.lastPrice !== null
         ? BigInt(market.yesToken.lastPrice)
@@ -110,7 +116,12 @@ export function computeTwapData(
 
   if (exchangeDelta <= 0n && yesToken.lastPrice === null) {
     // No trades indexed at all — use fallback
-    twapPriceYes = fallback;
+    if (fallbackPrice === undefined)
+      throw new TwapError(
+        "Fallback price is undefined where the subgraph has indexed trades",
+        500,
+      );
+    twapPriceYes = fallbackPrice;
   } else {
     twapPriceYes = exchangeDelta / timeDelta;
   }
