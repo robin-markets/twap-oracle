@@ -1,5 +1,17 @@
-import { createPublicClient, http, type Hex, type PublicClient } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  type Hex,
+  type PublicClient,
+  type WalletClient,
+  type Transport,
+  type Chain,
+  type Account,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { polygon } from "viem/chains";
+import type { TwapData } from "../types.js";
 
 export interface RpcMarketState {
   lastTwapUpdate: bigint;
@@ -64,20 +76,61 @@ const oracleAbi = [
     ],
     stateMutability: "view",
   },
+  {
+    type: "function",
+    name: "submitTwap",
+    inputs: [
+      {
+        name: "twapData",
+        type: "tuple",
+        internalType: "struct DataTypes.BatchTwapData",
+        components: [
+          {
+            name: "markets",
+            type: "tuple[]",
+            internalType: "struct DataTypes.TwapData[]",
+            components: [
+              { name: "required", type: "bool" },
+              { name: "conditionId", type: "bytes32" },
+              { name: "startTimestamp", type: "uint256" },
+              { name: "endTimestamp", type: "uint256" },
+              { name: "twapPriceYes", type: "uint256" },
+              { name: "marketEndedAt", type: "uint256" },
+              { name: "marketEndYesPrice", type: "uint256" },
+            ],
+          },
+          { name: "signature", type: "bytes" },
+        ],
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
 ] as const;
 
 export class RpcDataSource {
   private client: PublicClient;
+  private walletClient: WalletClient<Transport, Chain, Account> | null = null;
   private cachedDomain: Eip712Domain | null = null;
 
   constructor(
     rpcUrl: string,
     private oracleAddress: Hex,
+    privateKey?: Hex,
   ) {
+    const transport = http(rpcUrl);
     this.client = createPublicClient({
       chain: polygon,
-      transport: http(rpcUrl),
+      transport,
     });
+    if (privateKey) {
+      const account = privateKeyToAccount(privateKey);
+      this.walletClient = createWalletClient({
+        account,
+        chain: polygon,
+        transport,
+      });
+    }
   }
 
   /**
@@ -141,5 +194,32 @@ export class RpcDataSource {
     }
 
     return map;
+  }
+
+  /**
+   * Submit signed TWAP data on-chain via the oracle's submitTwap function.
+   * Returns the transaction hash once the transaction is confirmed.
+   */
+  async submitTwap(markets: TwapData[], signature: Hex): Promise<Hex> {
+    if (!this.walletClient) {
+      throw new Error(
+        "Cannot submit on-chain: wallet client not configured (missing private key)",
+      );
+    }
+
+    const hash = await this.walletClient.writeContract({
+      chain: polygon,
+      address: this.oracleAddress,
+      abi: oracleAbi,
+      functionName: "submitTwap",
+      args: [{ markets, signature }],
+    });
+
+    const receipt = await this.client.waitForTransactionReceipt({ hash });
+    if (receipt.status === "reverted") {
+      throw new Error(`submitTwap transaction reverted: ${hash}`);
+    }
+
+    return hash;
   }
 }

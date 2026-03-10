@@ -38,7 +38,11 @@ interface HandlerResult {
 export function createTwapRouter(config: Config): Router {
   const router = Router();
   const polymarket = new PolymarketDataSource();
-  const rpc = new RpcDataSource(config.rpcUrl, config.oracleAddress);
+  const rpc = new RpcDataSource(
+    config.rpcUrl,
+    config.oracleAddress,
+    config.submitOnchain ? config.twapSignerPrivateKey : undefined,
+  );
 
   router.post("/", async (req: Request, res: Response) => {
     try {
@@ -153,21 +157,30 @@ export function createTwapRouter(config: Config): Router {
         domain,
       );
 
-      const response: TwapResponse = {
-        markets: signed.markets.map((m) => ({
-          required: m.required,
-          conditionId: m.conditionId,
-          startTimestamp: m.startTimestamp.toString(),
-          endTimestamp: m.endTimestamp.toString(),
-          twapPriceYes: m.twapPriceYes.toString(),
-          marketEndedAt: m.marketEndedAt.toString(),
-          marketEndYesPrice: m.marketEndYesPrice.toString(),
-        })),
-        signature: signed.signature,
-        failed: [],
-      };
-
-      res.json(response);
+      if (config.submitOnchain) {
+        // ---- Submit on-chain and return tx hash ----
+        const txHash = await rpc.submitTwap(
+          signed.markets,
+          signed.signature,
+        );
+        res.json({ txHash });
+      } else {
+        // ---- Return signed data for caller to submit ----
+        const response: TwapResponse = {
+          markets: signed.markets.map((m) => ({
+            required: m.required,
+            conditionId: m.conditionId,
+            startTimestamp: m.startTimestamp.toString(),
+            endTimestamp: m.endTimestamp.toString(),
+            twapPriceYes: m.twapPriceYes.toString(),
+            marketEndedAt: m.marketEndedAt.toString(),
+            marketEndYesPrice: m.marketEndYesPrice.toString(),
+          })),
+          signature: signed.signature,
+          failed: [],
+        };
+        res.json(response);
+      }
     } catch (err) {
       sendNotification(
         `[CRITICAL] Unrecoverable TWAP oracle failure at signing: ` +

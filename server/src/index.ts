@@ -17,5 +17,4 @@ app.get("/health", (_req, res) => {
 app.listen(config.port, () => {
   console.log(`Robin TWAP Oracle listening on port ${config.port}`);
   console.log(`  Oracle:  ${config.oracleAddress}`);
-  console.log(`  Chain:  ${config.chainId}`);
 });
