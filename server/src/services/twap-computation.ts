@@ -171,6 +171,16 @@ function buildTwapData(
     // Clamp resolution price
     if (marketEndYesPrice > PRICE_SCALE) marketEndYesPrice = PRICE_SCALE;
     if (marketEndYesPrice < 0n) marketEndYesPrice = 0n;
+
+    // Market resolved before oracle initialization (e.g. retroactively added).
+    // Clamp marketEndedAt to startTimestamp + 1 so the contract's
+    // `marketEndedAt > lastTwapUpdate` check passes. Use the final price as
+    // twapPriceYes since the market was at its final price the entire time.
+    const initTimestamp = BigInt(market.robinInitializedAt);
+    if (marketEndedAt <= initTimestamp) {
+      marketEndedAt = startTimestamp + 1n;
+      twapPriceYes = marketEndYesPrice;
+    }
   }
 
   return {
