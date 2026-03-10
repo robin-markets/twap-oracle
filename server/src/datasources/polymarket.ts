@@ -5,20 +5,13 @@ const CLOB_API_BASE = "https://clob.polymarket.com";
 
 const MAX_PRICE_HISTORY_POINTS = 100;
 
-interface GammaMarketToken {
-  token_id: string;
-  outcome: string;
-  price?: number;
-}
-
-//TODO This seems to be inaccurate
 interface GammaMarketResponse {
-  condition_id: string;
-  tokens: GammaMarketToken[];
-  outcomePrices?: string; // JSON string like '["0.55","0.45"]'
+  conditionId: string;
+  outcomes: string; // JSON string like '["Yes", "No"]'
+  outcomePrices: string; // JSON string like '["0.55","0.45"]'
+  clobTokenIds: string; // JSON string like '["123...", "456..."]'
   active: boolean;
   closed: boolean;
-  resolved?: boolean;
 }
 
 interface PriceHistoryPoint {
@@ -74,44 +67,31 @@ export class PolymarketDataSource {
     const result = new Map<string, PolymarketMarketInfo>();
 
     for (const market of markets) {
-      const yesToken = market.tokens.find(
-        (t) => t.outcome === "Yes" || t.outcome === "yes"
+      const outcomes = JSON.parse(market.outcomes) as string[];
+      const prices = JSON.parse(market.outcomePrices) as string[];
+      const tokenIds = JSON.parse(market.clobTokenIds) as string[];
+
+      const yesIdx = outcomes.findIndex(
+        (o) => o.toLowerCase() === "yes"
       );
-      if (!yesToken) continue;
+      if (yesIdx === -1) continue;
 
-      let yesPrice = 0;
-      let noPrice = 0;
+      const noIdx = yesIdx === 0 ? 1 : 0;
+      const yesPrice = parseFloat(prices[yesIdx]) || 0;
+      const noPrice = parseFloat(prices[noIdx]) || 0;
 
-      if (market.outcomePrices) {
-        try {
-          const prices = JSON.parse(market.outcomePrices) as string[];
-          yesPrice = parseFloat(prices[0]);
-          noPrice = parseFloat(prices[1]);
-        } catch {
-          // Fall through to token prices
-        }
-      }
-
-      if (yesPrice === 0 && yesToken.price != null) {
-        yesPrice = yesToken.price;
-        const noToken = market.tokens.find(
-          (t) => t.outcome === "No" || t.outcome === "no"
-        );
-        noPrice = noToken?.price ?? 1 - yesPrice;
-      }
-
-      const resolved = market.resolved === true || market.closed === true;
+      const resolved = market.closed === true;
       let resolvedYesPrice: number | undefined;
       if (resolved) {
         resolvedYesPrice = yesPrice;
       }
 
-      result.set(market.condition_id, {
+      result.set(market.conditionId, {
         yesPrice,
         noPrice,
         resolved,
         resolvedYesPrice,
-        yesTokenId: yesToken.token_id,
+        yesTokenId: tokenIds[yesIdx],
       });
     }
 
