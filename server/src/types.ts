@@ -38,8 +38,8 @@ export interface SubgraphMarket {
   yesToken: SubgraphTokenIndex;
   noToken: SubgraphTokenIndex;
   robinInitializedAt: string;
-  twapIndexAtInitYes: string;
-  twapIndexAtInitNo: string;
+  twapSnapshotYes: string;
+  twapSnapshotNo: string;
   robinTwapIndexYes: string | null;
   robinLastUpdatedAt: string | null;
   robinResolvedAt: string | null;

@@ -33,8 +33,8 @@ export function handleMarketInitialized(event: MarketInitialized): void {
   market.yesToken = yesToken.id;
   market.noToken = noToken.id;
   market.robinInitializedAt = timestamp;
-  market.twapIndexAtInitYes = yesToken.twapIndex;
-  market.twapIndexAtInitNo = noToken.twapIndex;
+  market.twapSnapshotYes = yesToken.twapIndex;
+  market.twapSnapshotNo = noToken.twapIndex;
 
   market.save();
 }
@@ -46,6 +46,17 @@ export function handleTwapUpdated(event: TwapUpdated): void {
 
   market.robinLastUpdatedAt = event.params.timestamp;
   market.robinTwapIndexYes = event.params.twapAccumulatorYes;
+
+  // Snapshot current exchange twapIndex for next oracle computation
+  const yesToken = TokenIndex.load(market.yesToken);
+  if (yesToken) {
+    market.twapSnapshotYes = yesToken.twapIndex;
+  }
+  const noToken = TokenIndex.load(market.noToken);
+  if (noToken) {
+    market.twapSnapshotNo = noToken.twapIndex;
+  }
+
   market.save();
 }
 

@@ -63,20 +63,19 @@ export function computeTwapData(
   }
   // else: no trades at all — effectiveTwapIndex stays at 0 (or whatever twapIndex is)
 
-  // Compute TWAP price
-  const exchangeAccumulator =
-    effectiveTwapIndex - BigInt(market.twapIndexAtInitYes);
-  const contractAccumulator =
-    market.robinTwapIndexYes !== null ? BigInt(market.robinTwapIndexYes) : 0n;
-  const deltaAccumulator = exchangeAccumulator - contractAccumulator;
+  // Compute TWAP price from exchange activity since last contract update.
+  // twapSnapshotYes is the exchange twapIndex snapshotted at the last
+  // TwapUpdated event (or at market init). This avoids drift when TWAP
+  // is disabled in the contract for a period.
+  const exchangeDelta = effectiveTwapIndex - BigInt(market.twapSnapshotYes);
 
   let twapPriceYes: bigint;
 
-  if (deltaAccumulator <= 0n && yesToken.lastPrice === null) {
+  if (exchangeDelta <= 0n && yesToken.lastPrice === null) {
     // No trades indexed at all — use fallback
     twapPriceYes = fallback;
   } else {
-    twapPriceYes = deltaAccumulator / timeDelta;
+    twapPriceYes = exchangeDelta / timeDelta;
   }
 
   // Clamp to [0, PRICE_SCALE]

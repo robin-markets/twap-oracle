@@ -33,7 +33,7 @@ export function createTwapRouter(config: Config): Router {
       }
       if (body.conditionIds.length > MAX_CONDITION_IDS) {
         throw new ValidationError(
-          `Too many conditionIds (max ${MAX_CONDITION_IDS})`,
+          `Too many conditionIds (max ${MAX_CONDITION_IDS})`
         );
       }
 
@@ -43,7 +43,7 @@ export function createTwapRouter(config: Config): Router {
         if (!BYTES32_REGEX.test(normalized)) {
           throw new ValidationError(
             `Invalid conditionId format: ${id}`,
-            "Must be a 0x-prefixed 64-character hex string (bytes32)",
+            "Must be a 0x-prefixed 64-character hex string (bytes32)"
           );
         }
         return normalized;
@@ -62,7 +62,7 @@ export function createTwapRouter(config: Config): Router {
       if (missing.length > 0) {
         throw new ValidationError(
           `Markets not found: ${missing.join(", ")}`,
-          "These conditionIds are not initialized in the subgraph",
+          "These conditionIds are not initialized in the subgraph"
         );
       }
 
@@ -76,7 +76,7 @@ export function createTwapRouter(config: Config): Router {
           } catch {
             return undefined;
           }
-        }),
+        })
       );
 
       // Compute TwapData for each market in request order
@@ -90,7 +90,7 @@ export function createTwapRouter(config: Config): Router {
         twapDataArray,
         config.twapSignerPrivateKey,
         config.chainId,
-        config.vaultAddress,
+        config.vaultAddress
       );
 
       // Serialize bigints to decimal strings for JSON
@@ -113,6 +113,7 @@ export function createTwapRouter(config: Config): Router {
         res
           .status(err.statusCode)
           .json({ error: err.message, details: err.details });
+        console.error("Error:", err);
       } else {
         console.error("Unexpected error:", err);
         res.status(500).json({ error: "Internal server error" });

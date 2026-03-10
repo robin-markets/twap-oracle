@@ -13,8 +13,8 @@ type Market @entity(immutable: false) {
   yesToken: TokenIndex!
   noToken: TokenIndex!
   robinInitializedAt: BigInt!
-  twapIndexAtInitYes: BigInt!
-  twapIndexAtInitNo: BigInt!
+  twapSnapshotYes: BigInt! # exchange twapIndex for YES at last contract update
+  twapSnapshotNo: BigInt! # exchange twapIndex for NO at last contract update
   robinTwapIndexYes: BigInt
   robinLastUpdatedAt: BigInt
   robinResolvedAt: BigInt

@@ -23,8 +23,8 @@ const MARKETS_QUERY = `
         resolvedPrice
       }
       robinInitializedAt
-      twapIndexAtInitYes
-      twapIndexAtInitNo
+      twapSnapshotYes
+      twapSnapshotNo
       robinTwapIndexYes
       robinLastUpdatedAt
       robinResolvedAt
@@ -41,7 +41,7 @@ interface GraphQLResponse {
 
 export async function fetchMarkets(
   subgraphUrl: string,
-  conditionIds: string[],
+  conditionIds: string[]
 ): Promise<SubgraphMarket[]> {
   let response: Response;
   try {
@@ -56,14 +56,14 @@ export async function fetchMarkets(
   } catch (err) {
     throw new DataSourceError(
       "Subgraph unreachable",
-      err instanceof Error ? err.message : String(err),
+      err instanceof Error ? err.message : String(err)
     );
   }
 
   if (!response.ok) {
     throw new DataSourceError(
       `Subgraph HTTP ${response.status}`,
-      await response.text(),
+      await response.text()
     );
   }
 
@@ -72,7 +72,7 @@ export async function fetchMarkets(
   if (json.errors?.length) {
     throw new DataSourceError(
       "Subgraph query error",
-      json.errors.map((e) => e.message).join("; "),
+      json.errors.map((e) => e.message).join("; ")
     );
   }
 
