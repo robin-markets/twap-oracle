@@ -1,6 +1,18 @@
-type ExampleEntity @entity(immutable: true) {
-  id: Bytes!
-  count: BigInt!
-  receiver: Bytes! # address
-  tokenId: BigInt! # uint256
+type Condition @entity(immutable: true) {
+  id: Bytes! # conditionId
+  token0Id: BigInt!
+  token1Id: BigInt!
+  tokenIndices: [TokenIndex!]! @derivedFrom(field: "condition")
+}
+
+type TokenIndex @entity(immutable: false) {
+  id: String!
+  condition: Condition!
+  tokenId: BigInt!
+  twapIndex: BigInt! # sum(price(1e6) * seconds)
+  startedAt: BigInt! # timestamp
+  lastUpdated: BigInt! # timestamp
+  lastPrice: BigInt! # 6 decimals
+  resolvedAt: BigInt
+  resolvedPrice: BigInt # 6 decimals
 }

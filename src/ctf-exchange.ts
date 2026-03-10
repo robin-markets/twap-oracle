@@ -1,115 +1,155 @@
 import { BigInt, Bytes } from "@graphprotocol/graph-ts"
 import {
   CTFExchange,
-  FeeCharged,
-  NewAdmin,
-  NewOperator,
-  OrderCancelled,
   OrderFilled,
-  OrdersMatched,
-  ProxyFactoryUpdated,
-  RemovedAdmin,
-  RemovedOperator,
-  SafeFactoryUpdated,
-  TokenRegistered,
-  TradingPaused,
-  TradingUnpaused
+  TokenRegistered
 } from "../generated/CTFExchange/CTFExchange"
-import { ExampleEntity } from "../generated/schema"
+import { Condition, TokenIndex } from "../generated/schema"
 
-export function handleFeeCharged(event: FeeCharged): void {
-  // Entities can be loaded from the store using an ID; this ID
-  // needs to be unique across all entities of the same type
-  const id = event.transaction.hash.concat(
-    Bytes.fromByteArray(Bytes.fromBigInt(event.logIndex))
-  )
-  let entity = ExampleEntity.load(id)
+const COLLATERAL_ASSET_ID = BigInt.fromI32(0)
+const PRICE_SCALE = BigInt.fromI32(1000000)
 
-  // Entities only exist after they have been saved to the store;
-  // `null` checks allow to create entities on demand
-  if (!entity) {
-    entity = new ExampleEntity(id)
-
-    // Entity fields can be set using simple assignments
-    entity.count = BigInt.fromI32(0)
-  }
-
-  // BigInt and BigDecimal math are supported
-  entity.count = entity.count + BigInt.fromI32(1)
-
-  // Entity fields can be set based on event parameters
-  entity.receiver = event.params.receiver
-  entity.tokenId = event.params.tokenId
-
-  // Entities can be written to the store with `.save()`
-  entity.save()
-
-  // Note: If a handler doesn't require existing field values, it is faster
-  // _not_ to load the entity from the store. Instead, create it fresh with
-  // `new Entity(...)`, set the fields that should be updated and save the
-  // entity back to the store. Fields that were not set or unset remain
-  // unchanged, allowing for partial updates to be applied.
-
-  // It is also possible to access smart contracts from mappings. For
-  // example, the contract that has emitted the event can be connected to
-  // with:
-  //
-  // let contract = Contract.bind(event.address)
-  //
-  // The following functions can then be called on this contract to access
-  // state variables and other data:
-  //
-  // - contract.admins(...)
-  // - contract.domainSeparator(...)
-  // - contract.getCollateral(...)
-  // - contract.getComplement(...)
-  // - contract.getConditionId(...)
-  // - contract.getCtf(...)
-  // - contract.getMaxFeeRate(...)
-  // - contract.getOrderStatus(...)
-  // - contract.getPolyProxyFactoryImplementation(...)
-  // - contract.getPolyProxyWalletAddress(...)
-  // - contract.getProxyFactory(...)
-  // - contract.getSafeAddress(...)
-  // - contract.getSafeFactory(...)
-  // - contract.getSafeFactoryImplementation(...)
-  // - contract.hashOrder(...)
-  // - contract.isAdmin(...)
-  // - contract.isOperator(...)
-  // - contract.isValidNonce(...)
-  // - contract.nonces(...)
-  // - contract.onERC1155BatchReceived(...)
-  // - contract.onERC1155Received(...)
-  // - contract.operators(...)
-  // - contract.orderStatus(...)
-  // - contract.parentCollectionId(...)
-  // - contract.paused(...)
-  // - contract.proxyFactory(...)
-  // - contract.registry(...)
-  // - contract.safeFactory(...)
-  // - contract.supportsInterface(...)
+function tokenIndexId(conditionId: Bytes, tokenId: BigInt): string {
+  return conditionId.toHex().concat(tokenId.toString())
 }
 
-export function handleNewAdmin(event: NewAdmin): void {}
+function updateIndexWithPrice(
+  tokenIndex: TokenIndex,
+  price6: BigInt,
+  timestamp: BigInt
+): void {
+  const timeElapsed = timestamp.minus(tokenIndex.lastUpdated)
+  if (timeElapsed.gt(BigInt.zero())) {
+    tokenIndex.twapIndex = tokenIndex.twapIndex.plus(
+      tokenIndex.lastPrice.times(timeElapsed)
+    )
+  }
+  tokenIndex.lastPrice = price6
+  tokenIndex.lastUpdated = timestamp
+}
 
-export function handleNewOperator(event: NewOperator): void {}
+export function handleOrderFilled(event: OrderFilled): void {
+  const makerAssetId = event.params.makerAssetId
+  const takerAssetId = event.params.takerAssetId
 
-export function handleOrderCancelled(event: OrderCancelled): void {}
+  let tokenId: BigInt
+  let collateralAmount: BigInt
+  let tokenAmount: BigInt
 
-export function handleOrderFilled(event: OrderFilled): void {}
+  if (makerAssetId.equals(COLLATERAL_ASSET_ID)) {
+    tokenId = takerAssetId
+    collateralAmount = event.params.makerAmountFilled
+    tokenAmount = event.params.takerAmountFilled
+  } else if (takerAssetId.equals(COLLATERAL_ASSET_ID)) {
+    tokenId = makerAssetId
+    collateralAmount = event.params.takerAmountFilled
+    tokenAmount = event.params.makerAmountFilled
+  } else {
+    return
+  }
 
-export function handleOrdersMatched(event: OrdersMatched): void {}
+  if (tokenAmount.equals(BigInt.zero())) {
+    return
+  }
 
-export function handleProxyFactoryUpdated(event: ProxyFactoryUpdated): void {}
+  const contract = CTFExchange.bind(event.address)
+  const conditionResult = contract.try_getConditionId(tokenId)
+  if (conditionResult.reverted) {
+    return
+  }
 
-export function handleRemovedAdmin(event: RemovedAdmin): void {}
+  const conditionId = conditionResult.value
+  let condition = Condition.load(conditionId)
+  if (!condition) {
+    const complementResult = contract.try_getComplement(tokenId)
+    if (complementResult.reverted) {
+      return
+    }
+    condition = new Condition(conditionId)
+    condition.token0Id = tokenId
+    condition.token1Id = complementResult.value
+    condition.save()
 
-export function handleRemovedOperator(event: RemovedOperator): void {}
+    const token0Index = new TokenIndex(tokenIndexId(conditionId, tokenId))
+    token0Index.condition = conditionId
+    token0Index.tokenId = tokenId
+    token0Index.twapIndex = BigInt.zero()
+    token0Index.startedAt = event.block.timestamp
+    token0Index.lastUpdated = event.block.timestamp
+    token0Index.lastPrice = BigInt.zero()
+    token0Index.save()
 
-export function handleSafeFactoryUpdated(event: SafeFactoryUpdated): void {}
+    const token1Index = new TokenIndex(
+      tokenIndexId(conditionId, complementResult.value)
+    )
+    token1Index.condition = conditionId
+    token1Index.tokenId = complementResult.value
+    token1Index.twapIndex = BigInt.zero()
+    token1Index.startedAt = event.block.timestamp
+    token1Index.lastUpdated = event.block.timestamp
+    token1Index.lastPrice = BigInt.zero()
+    token1Index.save()
+  }
 
-export function handleTokenRegistered(event: TokenRegistered): void {}
+  const indexId = tokenIndexId(conditionId, tokenId)
+  let tokenIndex = TokenIndex.load(indexId)
+  if (!tokenIndex) {
+    tokenIndex = new TokenIndex(indexId)
+    tokenIndex.condition = conditionId
+    tokenIndex.tokenId = tokenId
+    tokenIndex.twapIndex = BigInt.zero()
+    tokenIndex.startedAt = event.block.timestamp
+    tokenIndex.lastUpdated = event.block.timestamp
+    tokenIndex.lastPrice = BigInt.zero()
+  }
 
-export function handleTradingPaused(event: TradingPaused): void {}
+  if (tokenIndex.resolvedAt !== null && tokenIndex.resolvedPrice !== null) {
+    const resolvedPrice = tokenIndex.resolvedPrice
+    if (resolvedPrice !== null) {
+      updateIndexWithPrice(tokenIndex, resolvedPrice, event.block.timestamp)
+      tokenIndex.save()
+      return
+    }
+  }
 
-export function handleTradingUnpaused(event: TradingUnpaused): void {}
+  const price6 = collateralAmount.times(PRICE_SCALE).div(tokenAmount)
+  updateIndexWithPrice(tokenIndex, price6, event.block.timestamp)
+  tokenIndex.save()
+}
+
+export function handleTokenRegistered(event: TokenRegistered): void {
+  const conditionId = event.params.conditionId
+  let condition = Condition.load(conditionId)
+  if (!condition) {
+    condition = new Condition(conditionId)
+    condition.token0Id = event.params.token0
+    condition.token1Id = event.params.token1
+    condition.save()
+  }
+
+  const token0IndexId = tokenIndexId(conditionId, event.params.token0)
+  let token0Index = TokenIndex.load(token0IndexId)
+  if (!token0Index) {
+    token0Index = new TokenIndex(token0IndexId)
+    token0Index.condition = conditionId
+    token0Index.tokenId = event.params.token0
+    token0Index.twapIndex = BigInt.zero()
+    token0Index.startedAt = event.block.timestamp
+    token0Index.lastUpdated = event.block.timestamp
+    token0Index.lastPrice = BigInt.zero()
+    token0Index.save()
+  }
+
+  const token1IndexId = tokenIndexId(conditionId, event.params.token1)
+  let token1Index = TokenIndex.load(token1IndexId)
+  if (!token1Index) {
+    token1Index = new TokenIndex(token1IndexId)
+    token1Index.condition = conditionId
+    token1Index.tokenId = event.params.token1
+    token1Index.twapIndex = BigInt.zero()
+    token1Index.startedAt = event.block.timestamp
+    token1Index.lastUpdated = event.block.timestamp
+    token1Index.lastPrice = BigInt.zero()
+    token1Index.save()
+  }
+}
