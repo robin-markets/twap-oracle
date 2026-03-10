@@ -1,7 +1,12 @@
 import type { Hex } from "viem";
 import type { RpcDataSource } from "../datasources/rpc.js";
+import type { RpcMarketState } from "../datasources/rpc.js";
 import type { PolymarketDataSource } from "../datasources/polymarket.js";
-import { PRICE_SCALE, type TwapData } from "../types.js";
+import {
+  PRICE_SCALE,
+  type PolymarketMarketInfo,
+  type TwapData,
+} from "../types.js";
 
 const DEFAULT_PRICE = PRICE_SCALE / 2n;
 
@@ -12,56 +17,28 @@ export interface AlternativeTwapResult {
 }
 
 /**
- * Compute TwapData for a single market using RPC + Polymarket
- * when the subgraph is unavailable.
+ * Compute TwapData for a single market from pre-loaded data.
+ * Needs polymarket only for the per-market getTwapData (CLOB price history) call.
+ *
+ * @param marketInfo - undefined when Polymarket was unreachable (uses DEFAULT_PRICE)
  */
 async function computeAlternativeTwapData(
   conditionId: string,
   endTimestamp: bigint,
-  rpc: RpcDataSource,
+  state: RpcMarketState,
+  marketInfo: PolymarketMarketInfo | undefined,
   polymarket: PolymarketDataSource,
 ): Promise<AlternativeTwapResult> {
   const hex = conditionId as Hex;
 
-  // Step 1: Get on-chain Robin contract state
-  const state = await rpc.getMarketState(hex);
-
-  // Already finalized in Robin — no TWAP needed
-  //TODO this does not mean the market is finalized. I only means the market twap requirement is turned off.
-  //Instead call RPC method isTwapSignatureRequired
-  //Also this twapRequired thing overall is not checked in the subgraph flow? Might be fine though because there is no harm in signing correct data if it is not used in the end
-  if (!state.twapRequired) {
-    return {
-      twapData: {
-        required: false,
-        conditionId: hex,
-        startTimestamp: 0n,
-        endTimestamp: 0n,
-        twapPriceYes: 0n,
-        marketEndedAt: 0n,
-        marketEndYesPrice: 0n,
-      },
-      usedDefaultPrice: false,
-      usedPolymarketSpot: false,
-    };
-  }
-
-  // Step 2: Determine startTimestamp from RPC
   const startTimestamp =
     state.lastTwapUpdate > 0n
       ? state.lastTwapUpdate
       : state.marketInitTimestamp;
 
-  // Step 3: Try to get Polymarket data
-  //TODO try to get rid of this. Maybe send the yesTOkenId alongside the conditionId?
-  //TODO If we can't get rid of it, load it as batch in parent function.
-  let marketInfo;
-  try {
-    marketInfo = await polymarket.getMarketInfo(conditionId);
-  } catch {
-    // Polymarket entirely unreachable — use DEFAULT_PRICE
-    //TODO don't use DEFAULT_PRICE here
-    //TODO if we keep it, notify
+  // Polymarket unreachable — use DEFAULT_PRICE
+  //TODO don't use DEFAULT_PRICE here
+  if (marketInfo === undefined) {
     return {
       twapData: {
         required: true,
@@ -77,7 +54,6 @@ async function computeAlternativeTwapData(
     };
   }
 
-  // Step 4: Compute TWAP price
   // Clamp endTimestamp to market resolution time if resolved on Polymarket
   let clampedEnd = endTimestamp;
   if (marketInfo.resolved && marketInfo.resolvedTimestamp) {
@@ -87,12 +63,12 @@ async function computeAlternativeTwapData(
     }
   }
 
+  // Compute TWAP price
   let twapPriceYes: bigint;
   let usedPolymarketSpot = false;
 
   const timeDelta = clampedEnd - startTimestamp;
   if (timeDelta <= 0n) {
-    // No time range — use spot price
     twapPriceYes = BigInt(
       Math.round(marketInfo.yesPrice * Number(PRICE_SCALE)),
     );
@@ -107,7 +83,6 @@ async function computeAlternativeTwapData(
       twapPriceYes = twapResult.twapPriceYes;
     } catch {
       // CLOB price history failed — use spot price
-      //TODO notify?
       twapPriceYes = BigInt(
         Math.round(marketInfo.yesPrice * Number(PRICE_SCALE)),
       );
@@ -119,15 +94,12 @@ async function computeAlternativeTwapData(
   if (twapPriceYes < 0n) twapPriceYes = 0n;
   if (twapPriceYes > PRICE_SCALE) twapPriceYes = PRICE_SCALE;
 
-  // Step 5: Resolution data
+  // Resolution data
   let marketEndedAt = state.marketEndedAt;
   let marketEndYesPrice = state.marketEndYesPrice;
 
-  // If contract doesn't know about resolution yet but Polymarket does,
-  // include Polymarket resolution data so the contract can finalize.
   if (marketEndedAt === 0n && marketInfo.resolved) {
     //TODO we probably should not add marketEndedAt if resolvedYesPrice is not available
-    //TODO also we need to check if the market already is resolved on chain which skips the twap requirement
     if (marketInfo.resolvedTimestamp) {
       marketEndedAt = BigInt(marketInfo.resolvedTimestamp);
     }
@@ -157,7 +129,11 @@ async function computeAlternativeTwapData(
 
 /**
  * Batch-compute alternative TwapData for multiple markets.
- * Individual market failures throw (caller should handle).
+ *
+ * 1. Batch RPC: getMarketStateBatch (multicall) for state + isTwapSignatureRequired
+ * 2. Early return markets that don't need TWAP signature
+ * 3. Batch Polymarket: getMarketInfoBatch for remaining markets
+ * 4. Per-market: compute TWAP from CLOB price history (no batch API for this)
  */
 export async function computeAlternativeTwapDataBatch(
   conditionIds: string[],
@@ -165,21 +141,65 @@ export async function computeAlternativeTwapDataBatch(
   rpc: RpcDataSource,
   polymarket: PolymarketDataSource,
 ): Promise<Map<string, AlternativeTwapResult>> {
+  // 1. Batch RPC
+  const rpcBatch = await rpc.getMarketStateBatch(
+    conditionIds.map((id) => id as Hex),
+  );
+
+  // 2. Early return for markets that don't need TWAP signature
   const results = new Map<string, AlternativeTwapResult>();
-  //TODO is Promise.all here the right choice if it really is up to 50 markets?
+  const needsPolymarket: string[] = [];
+
+  for (const id of conditionIds) {
+    const rpcData = rpcBatch.get(id as Hex)!;
+    if (!rpcData.twapSignatureRequired) {
+      results.set(id, {
+        twapData: {
+          required: false,
+          conditionId: id as Hex,
+          startTimestamp: 0n,
+          endTimestamp: 0n,
+          twapPriceYes: 0n,
+          marketEndedAt: 0n,
+          marketEndYesPrice: 0n,
+        },
+        usedDefaultPrice: false,
+        usedPolymarketSpot: false,
+      });
+    } else {
+      needsPolymarket.push(id);
+    }
+  }
+
+  if (needsPolymarket.length === 0) return results;
+
+  // 3. Batch Polymarket
+  let polymarketInfoMap = new Map<string, PolymarketMarketInfo>();
+  try {
+    polymarketInfoMap = await polymarket.getMarketInfoBatch(needsPolymarket);
+  } catch {
+    // All will use DEFAULT_PRICE — caller handles notification
+  }
+
+  // 4. Compute for each remaining market (getTwapData calls run concurrently)
   const entries = await Promise.all(
-    conditionIds.map(async (id) => {
+    needsPolymarket.map(async (id) => {
+      const rpcData = rpcBatch.get(id as Hex)!;
+      const marketInfo = polymarketInfoMap.get(id); // undefined if not found/unreachable
       const result = await computeAlternativeTwapData(
         id,
         endTimestamp,
-        rpc,
+        rpcData.state,
+        marketInfo,
         polymarket,
       );
       return [id, result] as const;
     }),
   );
+
   for (const [id, result] of entries) {
     results.set(id, result);
   }
+
   return results;
 }
