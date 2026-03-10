@@ -70,6 +70,7 @@ export function createTwapRouter(config: Config): Router {
       const fallbackPrices = await Promise.all(
         conditionIds.map(async (id) => {
           try {
+            //TODO only fetch when fallback is actually needed. Also load in batch and not in single requests
             const info = await polymarket.getMarketInfo(id);
             // Convert Polymarket price (0-1 float) to 6-decimal scale
             return BigInt(Math.round(info.yesPrice * Number(PRICE_SCALE)));

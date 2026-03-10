@@ -12,18 +12,18 @@ import type { TwapData, SignedBatchTwapData } from "../types.js";
 // Note the space after "required," — this is intentional and must be byte-identical.
 const TWAP_TYPEHASH = keccak256(
   toHex(
-    "TwapData(bool required, bytes32 conditionId,uint256 startTimestamp,uint256 endTimestamp,uint256 twapPriceYes,uint256 marketEndedAt,uint256 marketEndYesPrice)",
-  ),
+    "TwapData(bool required, bytes32 conditionId,uint256 startTimestamp,uint256 endTimestamp,uint256 twapPriceYes,uint256 marketEndedAt,uint256 marketEndYesPrice)"
+  )
 );
 
 const BATCH_TWAP_TYPEHASH = keccak256(
-  toHex("BatchTwapData(bytes32[] twapHashes)"),
+  toHex("BatchTwapData(bytes32[] twapHashes)")
 );
 
 const EIP712_DOMAIN_TYPEHASH = keccak256(
   toHex(
-    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)",
-  ),
+    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+  )
 );
 
 function buildDomainSeparator(chainId: number, vaultAddress: Hex): Hex {
@@ -42,8 +42,8 @@ function buildDomainSeparator(chainId: number, vaultAddress: Hex): Hex {
         keccak256(toHex("1")),
         BigInt(chainId),
         vaultAddress,
-      ],
-    ),
+      ]
+    )
   );
 }
 
@@ -75,8 +75,8 @@ function hashTwapData(twap: TwapData): Hex {
         twap.twapPriceYes,
         twap.marketEndedAt,
         twap.marketEndYesPrice,
-      ],
-    ),
+      ]
+    )
   );
 }
 
@@ -95,15 +95,15 @@ function hashBatchTwapData(markets: TwapData[]): Hex {
   const twapArrayHash = keccak256(
     encodePacked(
       individualHashes.map(() => "bytes32" as const),
-      individualHashes,
-    ),
+      individualHashes
+    )
   );
 
   return keccak256(
     encodeAbiParameters(
       [{ type: "bytes32" }, { type: "bytes32" }],
-      [BATCH_TWAP_TYPEHASH, twapArrayHash],
-    ),
+      [BATCH_TWAP_TYPEHASH, twapArrayHash]
+    )
   );
 }
 
@@ -113,12 +113,14 @@ function hashBatchTwapData(markets: TwapData[]): Hex {
  * Produces the exact signature the contract's _verifyBatchTwapSignature expects:
  *   digest = keccak256("\x19\x01" || domainSeparator || structHash)
  *   signature = ECDSA.sign(digest, privateKey)
+ *
+ * //TODO Don't sign if all markets are required=false
  */
 export async function signBatchTwapData(
   markets: TwapData[],
   privateKey: Hex,
   chainId: number,
-  vaultAddress: Hex,
+  vaultAddress: Hex
 ): Promise<SignedBatchTwapData> {
   const domainSeparator = buildDomainSeparator(chainId, vaultAddress);
   const structHash = hashBatchTwapData(markets);
@@ -127,8 +129,8 @@ export async function signBatchTwapData(
   const digest = keccak256(
     encodePacked(
       ["bytes2", "bytes32", "bytes32"],
-      ["0x1901", domainSeparator, structHash],
-    ),
+      ["0x1901", domainSeparator, structHash]
+    )
   );
 
   // Raw ECDSA sign — NOT signMessage (which adds Ethereum prefix)

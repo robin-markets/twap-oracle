@@ -4,6 +4,7 @@ const GAMMA_API_BASE = "https://gamma-api.polymarket.com";
 const CLOB_API_BASE = "https://clob.polymarket.com";
 
 // Fidelity in minutes for price history sampling
+//TODO make Fidelity so that it's at most 50-100 data points
 const PRICE_HISTORY_FIDELITY = 1;
 
 interface GammaMarketToken {
@@ -60,7 +61,7 @@ export class PolymarketDataSource {
 
     // Find YES token
     const yesToken = market.tokens.find(
-      (t) => t.outcome === "Yes" || t.outcome === "yes",
+      (t) => t.outcome === "Yes" || t.outcome === "yes"
     );
     if (!yesToken) {
       throw new Error(`No YES token found for market: ${conditionId}`);
@@ -83,7 +84,7 @@ export class PolymarketDataSource {
     if (yesPrice === 0 && yesToken.price != null) {
       yesPrice = yesToken.price;
       const noToken = market.tokens.find(
-        (t) => t.outcome === "No" || t.outcome === "no",
+        (t) => t.outcome === "No" || t.outcome === "no"
       );
       noPrice = noToken?.price ?? 1 - yesPrice;
     }
@@ -118,7 +119,7 @@ export class PolymarketDataSource {
   async getTwapData(
     yesTokenId: string,
     startTime: number,
-    endTime: number,
+    endTime: number
   ): Promise<{ twapPriceYes: bigint }> {
     const params = new URLSearchParams({
       market: yesTokenId,
