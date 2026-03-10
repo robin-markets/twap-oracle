@@ -74,9 +74,15 @@ export interface TwapResponseMarket {
   marketEndYesPrice: string;
 }
 
+export interface TwapResponseFailed {
+  conditionId: string;
+  error: string;
+}
+
 export interface TwapResponse {
   markets: TwapResponseMarket[];
   signature: string;
+  failed: TwapResponseFailed[];
 }
 
 // ---- Errors ----

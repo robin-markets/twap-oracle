@@ -1,7 +1,11 @@
 import { Router, type Request, type Response } from "express";
 import type { Config } from "../config.js";
 import { fetchMarkets } from "../datasources/subgraph.js";
-import { CachedPolymarketDataSource, PolymarketDataSource, type IPolymarketDataSource } from "../datasources/polymarket.js";
+import {
+  CachedPolymarketDataSource,
+  PolymarketDataSource,
+  type IPolymarketDataSource,
+} from "../datasources/polymarket.js";
 import { RpcDataSource } from "../datasources/rpc.js";
 import {
   computeTwapData,
@@ -19,13 +23,18 @@ import {
   type TwapData,
   type TwapRequest,
   type TwapResponse,
+  type TwapResponseFailed,
   type SubgraphMarket,
 } from "../types.js";
 
 const BYTES32_REGEX = /^0x[0-9a-f]{64}$/i;
-const MAX_CONDITION_IDS = 50;
+const MAX_CONDITION_IDS = 25;
 
-//TODO build the api in a way where the caller knows which conditionIds failed in case. So the user can remove that specific market in case of complete failure.
+interface HandlerResult {
+  twapData: TwapData[];
+  failed: TwapResponseFailed[];
+}
+
 export function createTwapRouter(config: Config): Router {
   const router = Router();
   const polymarket = new PolymarketDataSource();
@@ -84,11 +93,11 @@ export function createTwapRouter(config: Config): Router {
         ).catch(() => {});
       }
 
-      let twapDataArray: TwapData[];
+      let result: HandlerResult;
 
       if (subgraphFailed || subgraphMarkets === null) {
         // ===== FLOW C: Complete subgraph failure =====
-        twapDataArray = await handleCompleteFailure(
+        result = await handleCompleteFailure(
           conditionIds,
           endTimestamp,
           rpc,
@@ -96,7 +105,7 @@ export function createTwapRouter(config: Config): Router {
         );
       } else {
         // ===== FLOW A/B: Subgraph returned data =====
-        twapDataArray = await handleSubgraphData(
+        result = await handleSubgraphData(
           conditionIds,
           endTimestamp,
           subgraphMarkets,
@@ -106,9 +115,22 @@ export function createTwapRouter(config: Config): Router {
         );
       }
 
+      // ---- Check for failures ----
+      if (result.failed.length > 0) {
+        sendNotification(
+          `[CRITICAL] ${result.failed.length}/${conditionIds.length} markets failed: ` +
+            result.failed.map((f) => `${f.conditionId}: ${f.error}`).join("; "),
+        ).catch(() => {});
+        res.status(500).json({
+          error: "Some markets could not be computed",
+          failed: result.failed,
+        });
+        return;
+      }
+
       // ---- Sign and respond ----
       const signed = await signBatchTwapData(
-        twapDataArray,
+        result.twapData,
         config.twapSignerPrivateKey,
         config.chainId,
         config.vaultAddress,
@@ -125,6 +147,7 @@ export function createTwapRouter(config: Config): Router {
           marketEndYesPrice: m.marketEndYesPrice.toString(),
         })),
         signature: signed.signature,
+        failed: [],
       };
 
       res.json(response);
@@ -157,15 +180,31 @@ async function handleCompleteFailure(
   endTimestamp: bigint,
   rpc: RpcDataSource,
   polymarket: IPolymarketDataSource,
-): Promise<TwapData[]> {
-  const altResults = await computeAlternativeTwapDataBatch(
-    conditionIds,
-    endTimestamp,
-    rpc,
-    polymarket,
-  );
+): Promise<HandlerResult> {
+  const failed: TwapResponseFailed[] = [];
 
-  for (const [id, result] of altResults) {
+  let altBatch;
+  try {
+    altBatch = await computeAlternativeTwapDataBatch(
+      conditionIds,
+      endTimestamp,
+      rpc,
+      polymarket,
+    );
+  } catch (err) {
+    // Batch-level failure (RPC or Polymarket down) — all markets fail
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      twapData: [],
+      failed: conditionIds.map((id) => ({ conditionId: id, error: message })),
+    };
+  }
+
+  for (const [id, message] of altBatch.failed) {
+    failed.push({ conditionId: id, error: message });
+  }
+
+  for (const [id, result] of altBatch.results) {
     if (result.usedPolymarketSpot) {
       sendNotification(
         `[WARN] Market ${id}: subgraph down, used Polymarket spot price (CLOB TWAP unavailable)`,
@@ -173,7 +212,11 @@ async function handleCompleteFailure(
     }
   }
 
-  return conditionIds.map((id) => altResults.get(id)!.twapData);
+  const twapData = conditionIds
+    .filter((id) => altBatch.results.has(id))
+    .map((id) => altBatch.results.get(id)!.twapData);
+
+  return { twapData, failed };
 }
 
 /**
@@ -188,11 +231,12 @@ async function handleSubgraphData(
   rpc: RpcDataSource,
   polymarket: IPolymarketDataSource,
   config: Config,
-): Promise<TwapData[]> {
+): Promise<HandlerResult> {
   //TODO We are missing the check if twap is required overall? We might have to track twapRequirements in the subgraph (per market as well as globalls). Might be fine though because there is no harm in signing correct data if it is not used in the end
   const marketMap = new Map(subgraphMarkets.map((m) => [m.id, m]));
   const foundIds = conditionIds.filter((id) => marketMap.has(id));
   const missingIds = conditionIds.filter((id) => !marketMap.has(id));
+  const failed: TwapResponseFailed[] = [];
 
   // ---- Compute TwapData for subgraph markets ----
   const needsFallbackIds = foundIds.filter((id) =>
@@ -219,8 +263,16 @@ async function handleSubgraphData(
   for (const id of foundIds) {
     const market = marketMap.get(id)!;
     const fallbackPrice = fallbackMap.get(id);
-    const twapData = computeTwapData(market, endTimestamp, fallbackPrice);
-    subgraphTwapMap.set(id, twapData);
+    try {
+      const twapData = computeTwapData(market, endTimestamp, fallbackPrice);
+      subgraphTwapMap.set(id, twapData);
+    } catch (err) {
+      failed.push({
+        conditionId: id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
 
     // Notify about fallback usage
     if (needsFallbackPrice(market, endTimestamp)) {
@@ -244,26 +296,40 @@ async function handleSubgraphData(
         `(${missingIds.join(", ")}). Falling back to RPC+Polymarket.`,
     ).catch(() => {});
 
-    const altResults = await computeAlternativeTwapDataBatch(
-      missingIds,
-      endTimestamp,
-      rpc,
-      polymarket,
-    );
+    try {
+      const altBatch = await computeAlternativeTwapDataBatch(
+        missingIds,
+        endTimestamp,
+        rpc,
+        polymarket,
+      );
 
-    for (const [id, result] of altResults) {
-      altTwapMap.set(id, result.twapData);
-      if (result.usedPolymarketSpot) {
-        sendNotification(
-          `[WARN] Market ${id}: subgraph missing, used Polymarket spot price (CLOB TWAP unavailable)`,
-        ).catch(() => {});
+      for (const [id, message] of altBatch.failed) {
+        failed.push({ conditionId: id, error: message });
+      }
+
+      for (const [id, result] of altBatch.results) {
+        altTwapMap.set(id, result.twapData);
+        if (result.usedPolymarketSpot) {
+          sendNotification(
+            `[WARN] Market ${id}: subgraph missing, used Polymarket spot price (CLOB TWAP unavailable)`,
+          ).catch(() => {});
+        }
+      }
+    } catch (err) {
+      // Batch-level failure — all missing markets fail
+      const message = err instanceof Error ? err.message : String(err);
+      for (const id of missingIds) {
+        failed.push({ conditionId: id, error: message });
       }
     }
   }
 
   // ---- Verify subgraph-sourced markets against Polymarket ----
   const verificationInputs = foundIds
-    .filter((id) => subgraphTwapMap.get(id)!.required)
+    .filter(
+      (id) => subgraphTwapMap.has(id) && subgraphTwapMap.get(id)!.required,
+    )
     .map((id) => {
       const twapData = subgraphTwapMap.get(id)!;
       const market = marketMap.get(id)!;
@@ -274,14 +340,14 @@ async function handleSubgraphData(
       return { twapData, startTimestamp, endTimestamp };
     });
 
-  await verifyTwapDataBatch(
-    verificationInputs,
-    polymarket,
-    { twapDivergenceThresholdPct: config.twapDivergenceThresholdPct },
-  );
+  await verifyTwapDataBatch(verificationInputs, polymarket, {
+    twapDivergenceThresholdPct: config.twapDivergenceThresholdPct,
+  });
 
-  // ---- Merge in request order ----
-  return conditionIds.map(
-    (id) => subgraphTwapMap.get(id) ?? altTwapMap.get(id)!,
-  );
+  // ---- Merge in request order (only successful markets) ----
+  const twapData = conditionIds
+    .filter((id) => subgraphTwapMap.has(id) || altTwapMap.has(id))
+    .map((id) => subgraphTwapMap.get(id) ?? altTwapMap.get(id)!);
+
+  return { twapData, failed };
 }

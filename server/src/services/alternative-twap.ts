@@ -14,6 +14,11 @@ export interface AlternativeTwapResult {
   usedPolymarketSpot: boolean;
 }
 
+export interface AlternativeTwapBatchResult {
+  results: Map<string, AlternativeTwapResult>;
+  failed: Map<string, string>; // conditionId → error message
+}
+
 /**
  * Compute TwapData for a single market from pre-loaded data.
  * Needs polymarket only for the per-market getTwapData (CLOB price history) call.
@@ -141,7 +146,7 @@ export async function computeAlternativeTwapDataBatch(
   endTimestamp: bigint,
   rpc: RpcDataSource,
   polymarket: IPolymarketDataSource,
-): Promise<Map<string, AlternativeTwapResult>> {
+): Promise<AlternativeTwapBatchResult> {
   // 1. Batch RPC
   const rpcBatch = await rpc.getMarketStateBatch(
     conditionIds.map((id) => id as Hex),
@@ -149,6 +154,7 @@ export async function computeAlternativeTwapDataBatch(
 
   // 2. Early return for markets that don't need TWAP signature
   const results = new Map<string, AlternativeTwapResult>();
+  const failed = new Map<string, string>();
   const needsPolymarket: string[] = [];
 
   for (const id of conditionIds) {
@@ -171,14 +177,14 @@ export async function computeAlternativeTwapDataBatch(
     }
   }
 
-  if (needsPolymarket.length === 0) return results;
+  if (needsPolymarket.length === 0) return { results, failed };
 
   // 3. Batch Polymarket
   const polymarketInfoMap =
     await polymarket.getMarketInfoBatch(needsPolymarket);
 
   // 4. Compute for each remaining market (getTwapData calls run concurrently)
-  const entries = await Promise.all(
+  const settled = await Promise.allSettled(
     needsPolymarket.map(async (id) => {
       const rpcData = rpcBatch.get(id as Hex)!;
       const marketInfo = polymarketInfoMap.get(id); // undefined if not found/unreachable
@@ -193,9 +199,21 @@ export async function computeAlternativeTwapDataBatch(
     }),
   );
 
-  for (const [id, result] of entries) {
-    results.set(id, result);
+  for (let i = 0; i < settled.length; i++) {
+    const entry = settled[i];
+    if (entry.status === "fulfilled") {
+      const [id, result] = entry.value;
+      results.set(id, result);
+    } else {
+      const id = needsPolymarket[i];
+      failed.set(
+        id,
+        entry.reason instanceof Error
+          ? entry.reason.message
+          : String(entry.reason),
+      );
+    }
   }
 
-  return results;
+  return { results, failed };
 }
