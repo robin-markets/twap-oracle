@@ -80,9 +80,9 @@ async function computeAlternativeTwapData(
         Number(clampedEnd),
       );
       twapPriceYes = twapResult.twapPriceYes;
-    } catch {
+    } catch (error) {
       throw new TwapError(
-        `Cannot compute TWAP for market ${conditionId}: CLOB history call failed.`,
+        `Cannot compute TWAP for market ${conditionId}: CLOB history call failed: ${error instanceof Error ? error.message : String(error)}`,
         500,
       );
     }
