@@ -3,9 +3,7 @@ import { PRICE_SCALE, type PolymarketMarketInfo } from "../types.js";
 const GAMMA_API_BASE = "https://gamma-api.polymarket.com";
 const CLOB_API_BASE = "https://clob.polymarket.com";
 
-// Fidelity in minutes for price history sampling
-//TODO make Fidelity so that it's at most 50-100 data points
-const PRICE_HISTORY_FIDELITY = 1;
+const MAX_PRICE_HISTORY_POINTS = 100;
 
 interface GammaMarketToken {
   token_id: string;
@@ -13,6 +11,7 @@ interface GammaMarketToken {
   price?: number;
 }
 
+//TODO This seems to be inaccurate
 interface GammaMarketResponse {
   condition_id: string;
   tokens: GammaMarketToken[];
@@ -63,7 +62,9 @@ export class PolymarketDataSource {
   ): Promise<Map<string, PolymarketMarketInfo>> {
     if (conditionIds.length === 0) return new Map();
 
-    const url = `${GAMMA_API_BASE}/markets?condition_ids=${conditionIds.join(",")}`;
+    const url = `${GAMMA_API_BASE}/markets?condition_ids=${conditionIds.join(
+      ","
+    )}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Gamma API error: ${response.status}`);
@@ -132,11 +133,14 @@ export class PolymarketDataSource {
     startTime: number,
     endTime: number
   ): Promise<{ twapPriceYes: bigint }> {
+    const durationMinutes = (endTime - startTime) / 60;
+    const fidelity = Math.max(1, Math.ceil(durationMinutes / MAX_PRICE_HISTORY_POINTS));
+
     const params = new URLSearchParams({
       market: yesTokenId,
       startTs: startTime.toString(),
       endTs: endTime.toString(),
-      fidelity: PRICE_HISTORY_FIDELITY.toString(),
+      fidelity: fidelity.toString(),
     });
 
     const url = `${CLOB_API_BASE}/prices-history?${params}`;
