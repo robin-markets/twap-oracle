@@ -1,11 +1,7 @@
 import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { TwapData, SignedBatchTwapData } from "../types.js";
-
-const domain = {
-  name: "RobinTwapOracle",
-  version: "1",
-} as const;
+import type { Eip712Domain } from "../datasources/rpc.js";
 
 const types = {
   BatchTwapData: [{ name: "markets", type: "TwapData[]" }],
@@ -23,13 +19,15 @@ const types = {
 /**
  * Sign a batch of TwapData with EIP-712 using viem's signTypedData.
  *
+ * The EIP-712 domain is fetched from the oracle contract (EIP-5267)
+ * and passed in by the caller, so the server never hardcodes domain params.
+ *
  * If no market requires TWAP, returns an empty signature (no signing needed).
  */
 export async function signBatchTwapData(
   markets: TwapData[],
   privateKey: Hex,
-  chainId: number,
-  oracleAddress: Hex,
+  domain: Eip712Domain,
 ): Promise<SignedBatchTwapData> {
   if (!markets.some((m) => m.required)) {
     return { markets, signature: "0x" };
@@ -38,11 +36,7 @@ export async function signBatchTwapData(
   const account = privateKeyToAccount(privateKey);
 
   const signature = await account.signTypedData({
-    domain: {
-      ...domain,
-      chainId,
-      verifyingContract: oracleAddress,
-    },
+    domain,
     types,
     primaryType: "BatchTwapData",
     message: { markets },

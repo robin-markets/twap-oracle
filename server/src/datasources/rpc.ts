@@ -9,18 +9,29 @@ export interface RpcMarketState {
   marketInitTimestamp: bigint;
 }
 
-// ABI subset for the view functions we need
-//TODO store abi somewhere else when we have the mono repo
+export interface Eip712Domain {
+  name: string;
+  version: string;
+  chainId: number;
+  verifyingContract: Hex;
+}
+
+// TODO store abi somewhere central when we have the mono repo
 const oracleAbi = [
   {
     type: "function",
-    name: "getMarketState",
-    inputs: [{ name: "conditionId", type: "bytes32", internalType: "bytes32" }],
+    name: "batchGetMarketState",
+    inputs: [
+      {
+        name: "conditionIds",
+        type: "bytes32[]",
+      },
+    ],
     outputs: [
       {
-        name: "",
-        type: "tuple",
-        internalType: "struct IRobinTwapOracle.MarketState",
+        name: "states",
+        type: "tuple[]",
+        internalType: "struct IRobinTwapOracle.MarketState[]",
         components: [
           { name: "twapAccumulatorYes", type: "uint128" },
           { name: "twapRequired", type: "bool" },
@@ -30,20 +41,34 @@ const oracleAbi = [
           { name: "lastTwapUpdate", type: "uint40" },
         ],
       },
+      {
+        name: "signatureRequired",
+        type: "bool[]",
+        internalType: "bool[]",
+      },
     ],
     stateMutability: "view",
   },
   {
     type: "function",
-    name: "isTwapSignatureRequired",
-    inputs: [{ name: "conditionId", type: "bytes32" }],
-    outputs: [{ name: "", type: "bool" }],
+    name: "eip712Domain",
+    inputs: [],
+    outputs: [
+      { name: "fields", type: "bytes1" },
+      { name: "name", type: "string" },
+      { name: "version", type: "string" },
+      { name: "chainId", type: "uint256" },
+      { name: "verifyingContract", type: "address" },
+      { name: "salt", type: "bytes32" },
+      { name: "extensions", type: "uint256[]" },
+    ],
     stateMutability: "view",
   },
 ] as const;
 
 export class RpcDataSource {
   private client: PublicClient;
+  private cachedDomain: Eip712Domain | null = null;
 
   constructor(
     rpcUrl: string,
@@ -55,35 +80,32 @@ export class RpcDataSource {
     });
   }
 
-  async getMarketState(conditionId: Hex): Promise<RpcMarketState> {
+  /**
+   * Fetch the EIP-712 domain from the oracle contract (EIP-5267).
+   * Cached after the first call since the domain doesn't change.
+   */
+  async getEip712Domain(): Promise<Eip712Domain> {
+    if (this.cachedDomain) return this.cachedDomain;
+
     const result = await this.client.readContract({
       address: this.oracleAddress,
       abi: oracleAbi,
-      functionName: "getMarketState",
-      args: [conditionId],
+      functionName: "eip712Domain",
     });
 
-    return {
-      lastTwapUpdate: BigInt(result.lastTwapUpdate),
-      twapAccumulatorYes: BigInt(result.twapAccumulatorYes),
-      marketEndedAt: BigInt(result.marketEndedAt),
-      marketEndYesPrice: BigInt(result.marketEndYesPrice),
-      marketInitTimestamp: BigInt(result.marketInitTimestamp),
+    const [, name, version, chainId, verifyingContract] = result;
+    this.cachedDomain = {
+      name,
+      version,
+      chainId: Number(chainId),
+      verifyingContract: verifyingContract as Hex,
     };
-  }
-
-  async isTwapSignatureRequired(conditionId: Hex): Promise<boolean> {
-    return this.client.readContract({
-      address: this.oracleAddress,
-      abi: oracleAbi,
-      functionName: "isTwapSignatureRequired",
-      args: [conditionId],
-    });
+    return this.cachedDomain;
   }
 
   /**
    * Batch-fetch market state + isTwapSignatureRequired for multiple markets
-   * in a single multicall RPC request.
+   * in a single contract call using the native batchGetMarketState view.
    */
   async getMarketStateBatch(
     conditionIds: Hex[],
@@ -92,41 +114,20 @@ export class RpcDataSource {
   > {
     if (conditionIds.length === 0) return new Map();
 
-    const contracts = conditionIds.flatMap((id) => [
-      {
-        address: this.oracleAddress,
-        abi: oracleAbi,
-        functionName: "getMarketState" as const,
-        args: [id] as const,
-      },
-      {
-        address: this.oracleAddress,
-        abi: oracleAbi,
-        functionName: "isTwapSignatureRequired" as const,
-        args: [id] as const,
-      },
-    ]);
+    const [states, signatureRequired] = await this.client.readContract({
+      address: this.oracleAddress,
+      abi: oracleAbi,
+      functionName: "batchGetMarketState",
+      args: [conditionIds],
+    });
 
-    const results = await this.client.multicall({ contracts });
     const map = new Map<
       string,
       { state: RpcMarketState; twapSignatureRequired: boolean }
     >();
 
     for (let i = 0; i < conditionIds.length; i++) {
-      const stateResult = results[i * 2];
-      const twapResult = results[i * 2 + 1];
-
-      if (stateResult.status !== "success" || twapResult.status !== "success") {
-        console.error(stateResult, twapResult);
-        throw new Error(
-          `RPC multicall failed for market ${conditionIds[i]}` +
-            "\nerror: " +
-            (stateResult.error || twapResult.error),
-        );
-      }
-
-      const r = stateResult.result as any;
+      const r = states[i];
       map.set(conditionIds[i], {
         state: {
           lastTwapUpdate: BigInt(r.lastTwapUpdate),
@@ -135,7 +136,7 @@ export class RpcDataSource {
           marketEndYesPrice: BigInt(r.marketEndYesPrice),
           marketInitTimestamp: BigInt(r.marketInitTimestamp),
         },
-        twapSignatureRequired: twapResult.result as boolean,
+        twapSignatureRequired: signatureRequired[i],
       });
     }
 

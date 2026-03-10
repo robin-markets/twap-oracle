@@ -146,11 +146,11 @@ export function createTwapRouter(config: Config): Router {
       }
 
       // ---- Sign and respond ----
+      const domain = await rpc.getEip712Domain();
       const signed = await signBatchTwapData(
         result.twapData,
         config.twapSignerPrivateKey,
-        config.chainId,
-        config.oracleAddress,
+        domain,
       );
 
       const response: TwapResponse = {
