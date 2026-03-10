@@ -46,64 +46,75 @@ export class PolymarketDataSource {
    * GET https://gamma-api.polymarket.com/markets?condition_ids=<id>
    */
   async getMarketInfo(conditionId: string): Promise<PolymarketMarketInfo> {
-    const url = `${GAMMA_API_BASE}/markets?condition_ids=${conditionId}`;
+    const results = await this.getMarketInfoBatch([conditionId]);
+    const info = results.get(conditionId);
+    if (!info) {
+      throw new Error(`Market not found on Polymarket: ${conditionId}`);
+    }
+    return info;
+  }
+
+  /**
+   * Fetch market info for multiple condition IDs in a single request.
+   * Returns a map from conditionId to market info (missing markets are omitted).
+   */
+  async getMarketInfoBatch(
+    conditionIds: string[]
+  ): Promise<Map<string, PolymarketMarketInfo>> {
+    if (conditionIds.length === 0) return new Map();
+
+    const url = `${GAMMA_API_BASE}/markets?condition_ids=${conditionIds.join(",")}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Gamma API error: ${response.status}`);
     }
 
     const markets = (await response.json()) as GammaMarketResponse[];
-    if (!markets.length) {
-      throw new Error(`Market not found on Polymarket: ${conditionId}`);
-    }
+    const result = new Map<string, PolymarketMarketInfo>();
 
-    const market = markets[0];
-
-    // Find YES token
-    const yesToken = market.tokens.find(
-      (t) => t.outcome === "Yes" || t.outcome === "yes"
-    );
-    if (!yesToken) {
-      throw new Error(`No YES token found for market: ${conditionId}`);
-    }
-
-    // Parse prices from outcomePrices or token prices
-    let yesPrice = 0;
-    let noPrice = 0;
-
-    if (market.outcomePrices) {
-      try {
-        const prices = JSON.parse(market.outcomePrices) as string[];
-        yesPrice = parseFloat(prices[0]);
-        noPrice = parseFloat(prices[1]);
-      } catch {
-        // Fall through to token prices
-      }
-    }
-
-    if (yesPrice === 0 && yesToken.price != null) {
-      yesPrice = yesToken.price;
-      const noToken = market.tokens.find(
-        (t) => t.outcome === "No" || t.outcome === "no"
+    for (const market of markets) {
+      const yesToken = market.tokens.find(
+        (t) => t.outcome === "Yes" || t.outcome === "yes"
       );
-      noPrice = noToken?.price ?? 1 - yesPrice;
+      if (!yesToken) continue;
+
+      let yesPrice = 0;
+      let noPrice = 0;
+
+      if (market.outcomePrices) {
+        try {
+          const prices = JSON.parse(market.outcomePrices) as string[];
+          yesPrice = parseFloat(prices[0]);
+          noPrice = parseFloat(prices[1]);
+        } catch {
+          // Fall through to token prices
+        }
+      }
+
+      if (yesPrice === 0 && yesToken.price != null) {
+        yesPrice = yesToken.price;
+        const noToken = market.tokens.find(
+          (t) => t.outcome === "No" || t.outcome === "no"
+        );
+        noPrice = noToken?.price ?? 1 - yesPrice;
+      }
+
+      const resolved = market.resolved === true || market.closed === true;
+      let resolvedYesPrice: number | undefined;
+      if (resolved) {
+        resolvedYesPrice = yesPrice;
+      }
+
+      result.set(market.condition_id, {
+        yesPrice,
+        noPrice,
+        resolved,
+        resolvedYesPrice,
+        yesTokenId: yesToken.token_id,
+      });
     }
 
-    // Determine resolution status
-    const resolved = market.resolved === true || market.closed === true;
-    let resolvedYesPrice: number | undefined;
-    if (resolved) {
-      // A resolved YES token has price ~1.0 or ~0.0
-      resolvedYesPrice = yesPrice;
-    }
-
-    return {
-      yesPrice,
-      noPrice,
-      resolved,
-      resolvedYesPrice,
-      yesTokenId: yesToken.token_id,
-    };
+    return result;
   }
 
   /**

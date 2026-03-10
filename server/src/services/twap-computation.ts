@@ -4,6 +4,31 @@ import { PRICE_SCALE, type SubgraphMarket, type TwapData } from "../types.js";
 const DEFAULT_PRICE = PRICE_SCALE / 2n; // 500_000 = 50%
 
 /**
+ * Check whether a market will need a fallback price from Polymarket.
+ * Mirrors the conditions in computeTwapData that use the fallback value.
+ */
+export function needsFallbackPrice(
+  market: SubgraphMarket,
+  endTimestamp: bigint,
+): boolean {
+  // Robin already resolved — returns required: false, no fallback needed
+  if (market.robinResolvedAt !== null) return false;
+
+  const startTimestamp =
+    market.robinLastUpdatedAt !== null
+      ? BigInt(market.robinLastUpdatedAt)
+      : BigInt(market.robinInitializedAt);
+
+  // timeDelta <= 0 → uses fallback
+  if (endTimestamp - startTimestamp <= 0n) return true;
+
+  // No trades indexed → uses fallback
+  if (market.yesToken.lastPrice === null) return true;
+
+  return false;
+}
+
+/**
  * Compute TwapData for a single market from subgraph data.
  *
  * @param market - Subgraph market entity with nested token data

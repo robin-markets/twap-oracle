@@ -2,7 +2,10 @@ import { Router, type Request, type Response } from "express";
 import type { Config } from "../config.js";
 import { fetchMarkets } from "../datasources/subgraph.js";
 import { PolymarketDataSource } from "../datasources/polymarket.js";
-import { computeTwapData } from "../services/twap-computation.js";
+import {
+  computeTwapData,
+  needsFallbackPrice,
+} from "../services/twap-computation.js";
 import { signBatchTwapData } from "../services/signing.js";
 import {
   PRICE_SCALE,
@@ -58,6 +61,7 @@ export function createTwapRouter(config: Config): Router {
       const marketMap = new Map(markets.map((m) => [m.id, m]));
 
       // Check all requested markets exist
+      //TODO if a market is missing, we don't want to throw, we want to compute from alternative method (polymarket)
       const missing = conditionIds.filter((id) => !marketMap.has(id));
       if (missing.length > 0) {
         throw new ValidationError(
@@ -66,24 +70,31 @@ export function createTwapRouter(config: Config): Router {
         );
       }
 
-      // Fetch Polymarket prices as fallback (non-blocking, best-effort)
-      const fallbackPrices = await Promise.all(
-        conditionIds.map(async (id) => {
-          try {
-            //TODO only fetch when fallback is actually needed. Also load in batch and not in single requests
-            const info = await polymarket.getMarketInfo(id);
-            // Convert Polymarket price (0-1 float) to 6-decimal scale
-            return BigInt(Math.round(info.yesPrice * Number(PRICE_SCALE)));
-          } catch {
-            return undefined;
-          }
-        })
+      // Pre-check which markets need a fallback price from Polymarket
+      const needsFallbackIds = conditionIds.filter((id) =>
+        needsFallbackPrice(marketMap.get(id)!, endTimestamp)
       );
 
+      // Batch-fetch only the markets that need fallback (single request)
+      let fallbackMap = new Map<string, bigint>();
+      if (needsFallbackIds.length > 0) {
+        try {
+          const infoMap = await polymarket.getMarketInfoBatch(needsFallbackIds);
+          for (const [id, info] of infoMap) {
+            fallbackMap.set(
+              id,
+              BigInt(Math.round(info.yesPrice * Number(PRICE_SCALE)))
+            );
+          }
+        } catch {
+          // Best-effort — proceed without fallback prices
+        }
+      }
+
       // Compute TwapData for each market in request order
-      const twapDataArray = conditionIds.map((id, i) => {
+      const twapDataArray = conditionIds.map((id) => {
         const market = marketMap.get(id)!;
-        return computeTwapData(market, endTimestamp, fallbackPrices[i]);
+        return computeTwapData(market, endTimestamp, fallbackMap.get(id));
       });
 
       // Sign the batch
