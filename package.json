@@ -1,21 +1,22 @@
 {
-  "name": "polymarket-ctf-test",
-  "license": "UNLICENSED",
+  "name": "@robin-staking-vault/twap-oracle",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "codegen": "graph codegen",
-    "build": "graph build",
-    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ polymarket-ctf-test",
-    "create-local": "graph create --node http://localhost:8020/ polymarket-ctf-test",
-    "remove-local": "graph remove --node http://localhost:8020/ polymarket-ctf-test",
-    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 polymarket-ctf-test",
-    "test": "graph test"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@graphprotocol/graph-cli": "0.98.1",
-    "@graphprotocol/graph-ts": "0.37.0"
+    "dotenv": "^17.2.4",
+    "express": "^4.21.0",
+    "viem": "^2.21.0"
   },
   "devDependencies": {
-    "@graphql-eslint/eslint-plugin": "^4.4.0",
-    "matchstick-as": "0.6.0"
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
   }
 }
