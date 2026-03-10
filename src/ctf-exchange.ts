@@ -107,13 +107,8 @@ export function handleOrderFilled(event: OrderFilled): void {
     tokenIndex.lastPrice = BigInt.zero();
   }
 
-  if (tokenIndex.resolvedAt !== null && tokenIndex.resolvedPrice !== null) {
-    const resolvedPrice = tokenIndex.resolvedPrice;
-    if (resolvedPrice !== null) {
-      updateIndexWithPrice(tokenIndex, resolvedPrice, event.block.timestamp);
-      tokenIndex.save();
-      return;
-    }
+  if (tokenIndex.resolvedAt !== null) {
+    return;
   }
 
   const price6 = collateralAmount.times(PRICE_SCALE).div(tokenAmount);

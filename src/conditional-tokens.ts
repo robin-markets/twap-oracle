@@ -17,7 +17,6 @@ function applyResolvedPrice(
     tokenIndex.twapIndex = BigInt.zero();
     tokenIndex.startedAt = timestamp;
     tokenIndex.lastUpdatedAt = timestamp;
-    tokenIndex.lastPrice = resolvedPrice;
     tokenIndex.resolvedAt = timestamp;
     tokenIndex.resolvedPrice = resolvedPrice;
     return;
@@ -34,7 +33,6 @@ function applyResolvedPrice(
       tokenIndex.lastPrice.times(timeElapsed)
     );
   }
-  tokenIndex.lastPrice = resolvedPrice;
   tokenIndex.lastUpdatedAt = timestamp;
   tokenIndex.resolvedAt = timestamp;
   tokenIndex.resolvedPrice = resolvedPrice;
