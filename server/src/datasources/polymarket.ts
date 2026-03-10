@@ -1,3 +1,4 @@
+import { sendNotification } from "../services/notification.js";
 import { PRICE_SCALE, type PolymarketMarketInfo } from "../types.js";
 
 const GAMMA_API_BASE = "https://gamma-api.polymarket.com";
@@ -106,11 +107,16 @@ export class PolymarketDataSource implements IPolymarketDataSource {
       let resolvedYesPrice: number | undefined;
       let resolvedTimestamp: number | undefined;
       if (resolved) {
-        resolvedYesPrice = yesPrice;
         if (market.closedTime) {
-          resolvedTimestamp = Math.floor(
-            new Date(market.closedTime).getTime() / 1000,
-          );
+          const ms = new Date(market.closedTime).getTime();
+          if (!isNaN(ms)) {
+            resolvedTimestamp = Math.floor(ms / 1000);
+            resolvedYesPrice = yesPrice;
+          } else {
+            sendNotification(
+              `[WARN] Market ${market.conditionId} closedTime is not a valid date: ${market.closedTime}`,
+            ).catch(() => {});
+          }
         }
       }
 
