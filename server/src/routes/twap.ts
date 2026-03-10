@@ -77,7 +77,10 @@ export function createTwapRouter(config: Config): Router {
       let subgraphFailed = false;
 
       try {
-        const fetchResult = await fetchMarkets(config.subgraphUrl, conditionIds);
+        const fetchResult = await fetchMarkets(
+          config.subgraphUrl,
+          conditionIds,
+        );
         const subgraphLag = nowSeconds - fetchResult.blockTimestamp;
 
         if (subgraphLag > config.twapGracePeriodSeconds) {
@@ -238,7 +241,6 @@ async function handleSubgraphData(
   polymarket: IPolymarketDataSource,
   config: Config,
 ): Promise<HandlerResult> {
-  //TODO We are missing the check if twap is required overall? We might have to track twapRequirements in the subgraph (per market as well as globalls). Might be fine though because there is no harm in signing correct data if it is not used in the end
   const marketMap = new Map(subgraphMarkets.map((m) => [m.id, m]));
   const foundIds = conditionIds.filter((id) => marketMap.has(id));
   const missingIds = conditionIds.filter((id) => !marketMap.has(id));

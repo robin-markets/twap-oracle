@@ -37,7 +37,7 @@ For finalization (`_applyFinalTwap`), the contract splits the period:
 - `twapPriceYes * (marketEndedAt - lastTwapUpdate)` — TWAP up to resolution
 - `marketEndYesPrice * (block.timestamp - marketEndedAt)` — fixed price after resolution
 
-This is why `endTimestamp` in the signed data must always be the current time (the contract validates it against the grace period) and `twapPriceYes` must be the average over the pre-resolution period only when finalizing.
+The contract validates `endTimestamp` against a grace period (`endTimestamp + gracePeriod >= block.timestamp`), so it must be recent but does not have to be exactly `block.timestamp`. The server uses the subgraph's last indexed block timestamp as `endTimestamp` for Flow A/B, ensuring the signed data is consistent with the indexed state and that the contract would revert if the subgraph is falling too much out of sync. `twapPriceYes` must be the average over the pre-resolution period only when finalizing.
 
 ### Price scale
 
@@ -54,12 +54,12 @@ POST /twap { conditionIds: string[] }
    └──────┬──────┘
           │
           ▼
-   ┌─────────────┐     success     ┌──────────────────┐
-   │  Subgraph   │───────────────▶ │  Flow A/B        │
-   │  fetch      │                 │  (subgraph data) │
-   └──────┬──────┘                 └──────────────────┘
-          │ failure
-          ▼
+   ┌─────────────┐     success     ┌───────────────┐     fresh      ┌──────────────────┐
+   │  Subgraph   │───────────────▶ │  Staleness    │──────────────▶ │  Flow A/B        │
+   │  fetch      │                 │  check        │               │  (subgraph data) │
+   └──────┬──────┘                 └───────┬───────┘               └──────────────────┘
+          │ failure                        │ stale (> grace period)
+          ▼                                ▼
    ┌──────────────────┐
    │  Flow C          │
    │  (RPC+Polymarket)│
@@ -83,7 +83,7 @@ POST /twap { conditionIds: string[] }
 
 The happy path. The subgraph has indexed all requested markets.
 
-1. **Fetch subgraph data** — GraphQL query returns market entities with token indexes, snapshots, and resolution state.
+1. **Fetch subgraph data** — GraphQL query returns market entities with token indexes, snapshots, and resolution state. The query also fetches `_meta.block.timestamp` to determine how far behind the subgraph is. If the lag exceeds `TWAP_GRACE_PERIOD_SECONDS`, the subgraph is considered stale and the server falls back to Flow C. Otherwise, the subgraph's block timestamp is used as `endTimestamp` in the signed package, ensuring consistency between the indexed data and the time boundary.
 2. **Fallback prices** — For markets with no exchange trades, fetch the current YES price from the Polymarket Gamma API as a fallback.
 3. **Compute TWAP** (`twap-computation.ts`) — For each market:
    - If Robin already finalized: return `required: false` (no signature needed).
@@ -104,14 +104,17 @@ Same as Flow A for found markets, plus:
 2. Results are merged in the original request order.
 3. If any market fails (from either source), the entire request returns HTTP 500 with the `failed` array.
 
-### Flow C — Subgraph completely unavailable
+### Flow C — Subgraph completely unavailable (or too stale)
 
-Fallback path when the subgraph is down or returning errors.
+Fallback path when the subgraph is down, returning errors, or lagging behind by more than `TWAP_GRACE_PERIOD_SECONDS`.
 
 1. **Batch RPC** (`rpc.ts`) — `multicall` to the vault contract fetches `getMarketState` and `isTwapSignatureRequired` for all markets in a single request.
-2. **Early exit** — Markets that don't require a TWAP signature get `required: false`.
-3. **Batch Polymarket** — Fetch market info (prices, resolution status) from the Gamma API.
-4. **Per-market TWAP** (`alternative-twap.ts`) — For each market needing TWAP:
+2. **Categorize markets** (`alternative-twap.ts`) — Markets are split into three groups:
+   - **Already finalized** in the contract (`marketEndedAt > 0`): return `required: false`.
+   - **TWAP signature required**: needs full CLOB-based TWAP computation.
+   - **TWAP not required, not yet finalized**: check Polymarket for resolution status. If resolved, compute a full TWAP package with finalization data (so the contract can finalize the market). If not resolved, return `required: false`.
+3. **Batch Polymarket** — Fetch market info (prices, resolution status) from the Gamma API for all markets that need data.
+4. **Per-market TWAP** — For each market needing computation:
    - Clamp the calculation end to Polymarket's resolution timestamp if resolved.
    - Fetch CLOB price history (`/prices-history`) and compute a time-weighted average.
    - If the market is resolved on Polymarket but not on-chain, include resolution data.
