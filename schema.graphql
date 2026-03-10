@@ -11,8 +11,13 @@ type TokenIndex @entity(immutable: false) {
   tokenId: BigInt!
   twapIndex: BigInt! # sum(price(1e6) * seconds)
   startedAt: BigInt! # timestamp
-  lastUpdated: BigInt! # timestamp
+  lastUpdatedAt: BigInt! # timestamp
   lastPrice: BigInt! # 6 decimals
   resolvedAt: BigInt
   resolvedPrice: BigInt # 6 decimals
+  robinLastUpdatedAt: BigInt
+  robinTwapIndexYes: BigInt
+  robinInitializedAt: BigInt
+  twapIndexAtRobinInitializedAt: BigInt
+  robinIsYes: Boolean
 }

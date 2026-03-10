@@ -50,3 +50,26 @@ dataSources:
             bytes32,uint256,uint256[])
           handler: handleConditionResolution
       file: ./src/conditional-tokens.ts
+  - kind: ethereum
+    name: RobinStakingVault
+    network: matic
+    source:
+      address: "0x0000000000000000000000000000000000000000"
+      abi: RobinStakingVault
+      startBlock: 82604020
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Condition
+        - TokenIndex
+      abis:
+        - name: RobinStakingVault
+          file: ./abis/RobinStakingVault.json
+      eventHandlers:
+        - event: MarketInitialized(indexed bytes32,uint256,uint256,bool)
+          handler: handleMarketInitialized
+        - event: TwapUpdated(indexed bytes32,uint256,uint256)
+          handler: handleTwapUpdated
+      file: ./src/robin-staking-vault.ts
