@@ -1,10 +1,10 @@
 # Robin TWAP Oracle Server
 
-Off-chain oracle that computes Time-Weighted Average Price (TWAP) data for Polymarket prediction markets and signs it for on-chain consumption by the RobinStakingVault contract.
+Off-chain oracle that computes Time-Weighted Average Price (TWAP) data for Polymarket prediction markets and signs it for on-chain consumption by the RobinTwapOracle contract.
 
 ## How TWAP Works
 
-The vault needs to know the average YES/NO price over time to fairly split yield between the two sides. A TWAP accumulator tracks `sum(price * time)` — the area under the price curve. Dividing by the total time gives the average price.
+RobinStakingVault needs to know the average YES/NO price over time to fairly split yield between the two sides. A TWAP accumulator in the Oracle tracks `sum(price * time)` — the area under the price curve. Dividing by the total time gives the average price.
 
 ### Accumulation (subgraph)
 
@@ -37,7 +37,7 @@ For finalization (`_applyFinalTwap`), the contract splits the period:
 - `twapPriceYes * (marketEndedAt - lastTwapUpdate)` — TWAP up to resolution
 - `marketEndYesPrice * (block.timestamp - marketEndedAt)` — fixed price after resolution
 
-The contract validates `endTimestamp` against a grace period (`endTimestamp + gracePeriod >= block.timestamp`), so it must be recent but does not have to be exactly `block.timestamp`. The server uses the subgraph's last indexed block timestamp as `endTimestamp` for Flow A/B, ensuring the signed data is consistent with the indexed state and that the contract would revert if the subgraph is falling too much out of sync. `twapPriceYes` must be the average over the pre-resolution period only when finalizing.
+The server uses the subgraph's last indexed block timestamp as `endTimestamp` for Flow A/B, ensuring the signed data is consistent with the indexed state and that the vault contract would revert if the subgraph is falling too much out of sync. `twapPriceYes` must be the average over the pre-resolution period only when finalizing.
 
 ### Price scale
 
@@ -108,7 +108,7 @@ Same as Flow A for found markets, plus:
 
 Fallback path when the subgraph is down, returning errors, or lagging behind by more than `TWAP_GRACE_PERIOD_SECONDS`.
 
-1. **Batch RPC** (`rpc.ts`) — `multicall` to the vault contract fetches `getMarketState` and `isTwapSignatureRequired` for all markets in a single request.
+1. **Batch RPC** (`rpc.ts`) — `multicall` to the oracle contract fetches `getMarketState` and `isTwapSignatureRequired` for all markets in a single request.
 2. **Categorize markets** (`alternative-twap.ts`) — Markets are split into three groups:
    - **Already finalized** in the contract (`marketEndedAt > 0`): return `required: false`.
    - **TWAP signature required**: needs full CLOB-based TWAP computation.

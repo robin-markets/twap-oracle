@@ -11,35 +11,23 @@ export interface RpcMarketState {
 
 // ABI subset for the view functions we need
 //TODO store abi somewhere else when we have the mono repo
-const vaultAbi = [
+const oracleAbi = [
   {
     type: "function",
     name: "getMarketState",
-    inputs: [{ name: "conditionId", type: "bytes32" }],
+    inputs: [{ name: "conditionId", type: "bytes32", internalType: "bytes32" }],
     outputs: [
       {
         name: "",
         type: "tuple",
+        internalType: "struct IRobinTwapOracle.MarketState",
         components: [
-          { name: "totalSharesYes", type: "uint256" },
-          { name: "totalSharesNo", type: "uint256" },
-          { name: "lossIndexYes", type: "uint128" },
-          { name: "lossIndexNo", type: "uint128" },
-          { name: "yieldPerShareYes", type: "uint128" },
-          { name: "yieldPerShareNo", type: "uint128" },
           { name: "twapAccumulatorYes", type: "uint128" },
-          { name: "lastYieldTwapCheckpointYes", type: "uint128" },
+          { name: "twapRequired", type: "bool" },
+          { name: "marketEndYesPrice", type: "uint64" },
+          { name: "marketEndedAt", type: "uint40" },
           { name: "marketInitTimestamp", type: "uint40" },
           { name: "lastTwapUpdate", type: "uint40" },
-          { name: "lastYieldTimestamp", type: "uint40" },
-          { name: "twapRequired", type: "bool" },
-          { name: "yieldReductionFactor", type: "uint128" },
-          { name: "marketPoolShares", type: "uint256" },
-          { name: "principalContributed", type: "uint256" },
-          { name: "marketEndedAt", type: "uint40" },
-          { name: "marketEndYesPrice", type: "uint64" },
-          { name: "totalWeightedSnapshotYes", type: "uint256" },
-          { name: "totalWeightedSnapshotNo", type: "uint256" },
         ],
       },
     ],
@@ -59,7 +47,7 @@ export class RpcDataSource {
 
   constructor(
     rpcUrl: string,
-    private vaultAddress: Hex,
+    private oracleAddress: Hex,
   ) {
     this.client = createPublicClient({
       chain: polygon,
@@ -69,8 +57,8 @@ export class RpcDataSource {
 
   async getMarketState(conditionId: Hex): Promise<RpcMarketState> {
     const result = await this.client.readContract({
-      address: this.vaultAddress,
-      abi: vaultAbi,
+      address: this.oracleAddress,
+      abi: oracleAbi,
       functionName: "getMarketState",
       args: [conditionId],
     });
@@ -86,8 +74,8 @@ export class RpcDataSource {
 
   async isTwapSignatureRequired(conditionId: Hex): Promise<boolean> {
     return this.client.readContract({
-      address: this.vaultAddress,
-      abi: vaultAbi,
+      address: this.oracleAddress,
+      abi: oracleAbi,
       functionName: "isTwapSignatureRequired",
       args: [conditionId],
     });
@@ -106,14 +94,14 @@ export class RpcDataSource {
 
     const contracts = conditionIds.flatMap((id) => [
       {
-        address: this.vaultAddress,
-        abi: vaultAbi,
+        address: this.oracleAddress,
+        abi: oracleAbi,
         functionName: "getMarketState" as const,
         args: [id] as const,
       },
       {
-        address: this.vaultAddress,
-        abi: vaultAbi,
+        address: this.oracleAddress,
+        abi: oracleAbi,
         functionName: "isTwapSignatureRequired" as const,
         args: [id] as const,
       },

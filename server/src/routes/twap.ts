@@ -38,7 +38,7 @@ interface HandlerResult {
 export function createTwapRouter(config: Config): Router {
   const router = Router();
   const polymarket = new PolymarketDataSource();
-  const rpc = new RpcDataSource(config.rpcUrl, config.vaultAddress);
+  const rpc = new RpcDataSource(config.rpcUrl, config.oracleAddress);
 
   router.post("/", async (req: Request, res: Response) => {
     try {
@@ -150,7 +150,7 @@ export function createTwapRouter(config: Config): Router {
         result.twapData,
         config.twapSignerPrivateKey,
         config.chainId,
-        config.vaultAddress,
+        config.oracleAddress,
       );
 
       const response: TwapResponse = {

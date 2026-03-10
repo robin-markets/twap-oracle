@@ -3,7 +3,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { TwapData, SignedBatchTwapData } from "../types.js";
 
 const domain = {
-  name: "RobinStakingVault",
+  name: "RobinTwapOracle",
   version: "1",
 } as const;
 
@@ -29,7 +29,7 @@ export async function signBatchTwapData(
   markets: TwapData[],
   privateKey: Hex,
   chainId: number,
-  vaultAddress: Hex
+  oracleAddress: Hex,
 ): Promise<SignedBatchTwapData> {
   if (!markets.some((m) => m.required)) {
     return { markets, signature: "0x" };
@@ -41,7 +41,7 @@ export async function signBatchTwapData(
     domain: {
       ...domain,
       chainId,
-      verifyingContract: vaultAddress,
+      verifyingContract: oracleAddress,
     },
     types,
     primaryType: "BatchTwapData",

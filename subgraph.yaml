@@ -68,11 +68,11 @@ dataSources:
           handler: handleNegRiskOrderFilled
       file: ./src/ctf-exchange.ts
   - kind: ethereum
-    name: RobinStakingVault
+    name: RobinTwapOracle
     network: matic
     source:
       address: "0xAa489b4F076ce1459B48a730eFb981641A91B7c7"
-      abi: RobinStakingVault
+      abi: IRobinTwapOracle
       startBlock: 82604020
     mapping:
       kind: ethereum/events
@@ -82,8 +82,8 @@ dataSources:
         - Market
         - TokenIndex
       abis:
-        - name: RobinStakingVault
-          file: ./abis/RobinStakingVault.json
+        - name: IRobinTwapOracle
+          file: ./abis/IRobinTwapOracle.json
       eventHandlers:
         - event: MarketFinalized(indexed bytes32,uint256,uint256)
           handler: handleMarketFinalized
@@ -91,4 +91,4 @@ dataSources:
           handler: handleMarketInitialized
         - event: TwapUpdated(indexed bytes32,uint256,uint256)
           handler: handleTwapUpdated
-      file: ./src/robin-staking-vault.ts
+      file: ./src/robin-twap-oracle.ts

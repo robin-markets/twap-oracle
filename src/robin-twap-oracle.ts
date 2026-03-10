@@ -3,7 +3,7 @@ import {
   MarketInitialized,
   MarketFinalized,
   TwapUpdated,
-} from "../generated/RobinStakingVault/RobinStakingVault";
+} from "../generated/RobinTwapOracle/IRobinTwapOracle";
 import { Market, TokenIndex } from "../generated/schema";
 import { PRICE_SCALE } from "./utils";
 

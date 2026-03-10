@@ -4,7 +4,7 @@ export interface Config {
   twapSignerPrivateKey: Hex;
   subgraphUrl: string;
   rpcUrl: string;
-  vaultAddress: Hex;
+  oracleAddress: Hex;
   chainId: number;
   port: number;
   twapDivergenceThresholdPct: number;
@@ -24,7 +24,7 @@ export function loadConfig(): Config {
     twapSignerPrivateKey: requireEnv("TWAP_SIGNER_PRIVATE_KEY") as Hex,
     subgraphUrl: requireEnv("SUBGRAPH_URL"),
     rpcUrl: requireEnv("RPC_URL"),
-    vaultAddress: requireEnv("VAULT_ADDRESS") as Hex,
+    oracleAddress: requireEnv("ORACLE_ADDRESS") as Hex,
     chainId: Number(process.env.CHAIN_ID ?? "137"),
     port: Number(process.env.PORT ?? "3000"),
     twapDivergenceThresholdPct: Number(
