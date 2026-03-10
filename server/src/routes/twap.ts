@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type { Config } from "../config.js";
 import { fetchMarkets } from "../datasources/subgraph.js";
-import { PolymarketDataSource } from "../datasources/polymarket.js";
+import { CachedPolymarketDataSource, PolymarketDataSource, type IPolymarketDataSource } from "../datasources/polymarket.js";
 import { RpcDataSource } from "../datasources/rpc.js";
 import {
   computeTwapData,
@@ -20,7 +20,6 @@ import {
   type TwapRequest,
   type TwapResponse,
   type SubgraphMarket,
-  PolymarketMarketInfo,
 } from "../types.js";
 
 const BYTES32_REGEX = /^0x[0-9a-f]{64}$/i;
@@ -61,6 +60,7 @@ export function createTwapRouter(config: Config): Router {
       });
 
       const endTimestamp = BigInt(Math.floor(Date.now() / 1000));
+      const cachedPolymarket = new CachedPolymarketDataSource(polymarket);
 
       // ---- Attempt subgraph fetch ----
       let subgraphMarkets: SubgraphMarket[] | null = null;
@@ -92,7 +92,7 @@ export function createTwapRouter(config: Config): Router {
           conditionIds,
           endTimestamp,
           rpc,
-          polymarket,
+          cachedPolymarket,
         );
       } else {
         // ===== FLOW A/B: Subgraph returned data =====
@@ -101,7 +101,7 @@ export function createTwapRouter(config: Config): Router {
           endTimestamp,
           subgraphMarkets,
           rpc,
-          polymarket,
+          cachedPolymarket,
           config,
         );
       }
@@ -156,7 +156,7 @@ async function handleCompleteFailure(
   conditionIds: string[],
   endTimestamp: bigint,
   rpc: RpcDataSource,
-  polymarket: PolymarketDataSource,
+  polymarket: IPolymarketDataSource,
 ): Promise<TwapData[]> {
   const altResults = await computeAlternativeTwapDataBatch(
     conditionIds,
@@ -186,7 +186,7 @@ async function handleSubgraphData(
   endTimestamp: bigint,
   subgraphMarkets: SubgraphMarket[],
   rpc: RpcDataSource,
-  polymarket: PolymarketDataSource,
+  polymarket: IPolymarketDataSource,
   config: Config,
 ): Promise<TwapData[]> {
   //TODO We are missing the check if twap is required overall? We might have to track twapRequirements in the subgraph (per market as well as globalls). Might be fine though because there is no harm in signing correct data if it is not used in the end
@@ -200,7 +200,6 @@ async function handleSubgraphData(
   );
 
   let fallbackMap = new Map<string, bigint>();
-  let polymarketInfoCache = new Map<string, PolymarketMarketInfo>();
   if (needsFallbackIds.length > 0) {
     try {
       const infoMap = await polymarket.getMarketInfoBatch(needsFallbackIds);
@@ -210,7 +209,6 @@ async function handleSubgraphData(
           id,
           BigInt(Math.round(info.yesPrice * Number(PRICE_SCALE))),
         );
-        polymarketInfoCache.set(id, info);
       }
     } catch {
       // Best-effort — markets will use DEFAULT_PRICE
@@ -280,7 +278,6 @@ async function handleSubgraphData(
     verificationInputs,
     polymarket,
     { twapDivergenceThresholdPct: config.twapDivergenceThresholdPct },
-    polymarketInfoCache,
   );
 
   // ---- Merge in request order ----

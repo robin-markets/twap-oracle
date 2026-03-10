@@ -33,7 +33,19 @@ interface PriceHistoryResponse {
  * - getTwapData: historical TWAP computed from CLOB price-history samples.
  *   Primary failover when the subgraph is down or returning stale data.
  */
-export class PolymarketDataSource {
+export interface IPolymarketDataSource {
+  getMarketInfo(conditionId: string): Promise<PolymarketMarketInfo>;
+  getMarketInfoBatch(
+    conditionIds: string[],
+  ): Promise<Map<string, PolymarketMarketInfo>>;
+  getTwapData(
+    yesTokenId: string,
+    startTime: number,
+    endTime: number,
+  ): Promise<{ twapPriceYes: bigint }>;
+}
+
+export class PolymarketDataSource implements IPolymarketDataSource {
   /**
    * Fetch market info from gamma-api.
    * GET https://gamma-api.polymarket.com/markets?condition_ids=<id>
@@ -183,5 +195,53 @@ export class PolymarketDataSource {
     return {
       twapPriceYes: BigInt(Math.round(avgPrice * Number(PRICE_SCALE))),
     };
+  }
+}
+
+/**
+ * Request-scoped wrapper that caches getMarketInfoBatch results.
+ * Create one per request; it is GC'd when the request finishes.
+ * getTwapData is not cached (unique per token + time range).
+ */
+export class CachedPolymarketDataSource implements IPolymarketDataSource {
+  private cache = new Map<string, PolymarketMarketInfo>();
+
+  constructor(private inner: PolymarketDataSource) {}
+
+  async getMarketInfo(conditionId: string): Promise<PolymarketMarketInfo> {
+    const results = await this.getMarketInfoBatch([conditionId]);
+    const info = results.get(conditionId);
+    if (!info) {
+      throw new Error(`Market not found on Polymarket: ${conditionId}`);
+    }
+    return info;
+  }
+
+  async getMarketInfoBatch(
+    conditionIds: string[],
+  ): Promise<Map<string, PolymarketMarketInfo>> {
+    const missing = conditionIds.filter((id) => !this.cache.has(id));
+
+    if (missing.length > 0) {
+      const fetched = await this.inner.getMarketInfoBatch(missing);
+      for (const [id, info] of fetched) {
+        this.cache.set(id, info);
+      }
+    }
+
+    const result = new Map<string, PolymarketMarketInfo>();
+    for (const id of conditionIds) {
+      const info = this.cache.get(id);
+      if (info) result.set(id, info);
+    }
+    return result;
+  }
+
+  async getTwapData(
+    yesTokenId: string,
+    startTime: number,
+    endTime: number,
+  ): Promise<{ twapPriceYes: bigint }> {
+    return this.inner.getTwapData(yesTokenId, startTime, endTime);
   }
 }

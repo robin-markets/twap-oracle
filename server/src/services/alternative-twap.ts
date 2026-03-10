@@ -1,7 +1,7 @@
 import type { Hex } from "viem";
 import type { RpcDataSource } from "../datasources/rpc.js";
 import type { RpcMarketState } from "../datasources/rpc.js";
-import type { PolymarketDataSource } from "../datasources/polymarket.js";
+import type { IPolymarketDataSource } from "../datasources/polymarket.js";
 import {
   PRICE_SCALE,
   TwapError,
@@ -25,7 +25,7 @@ async function computeAlternativeTwapData(
   endTimestamp: bigint,
   state: RpcMarketState,
   marketInfo: PolymarketMarketInfo | undefined,
-  polymarket: PolymarketDataSource,
+  polymarket: IPolymarketDataSource,
 ): Promise<AlternativeTwapResult> {
   const hex = conditionId as Hex;
 
@@ -140,7 +140,7 @@ export async function computeAlternativeTwapDataBatch(
   conditionIds: string[],
   endTimestamp: bigint,
   rpc: RpcDataSource,
-  polymarket: PolymarketDataSource,
+  polymarket: IPolymarketDataSource,
 ): Promise<Map<string, AlternativeTwapResult>> {
   // 1. Batch RPC
   const rpcBatch = await rpc.getMarketStateBatch(
