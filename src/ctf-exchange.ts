@@ -115,34 +115,3 @@ export function handleOrderFilled(event: OrderFilled): void {
   updateIndexWithPrice(tokenIndex, price6, event.block.timestamp);
   tokenIndex.save();
 }
-
-export function handleTokenRegistered(event: TokenRegistered): void {
-  const conditionId = event.params.conditionId;
-  let condition = Condition.load(conditionId);
-  if (!condition) {
-    condition = new Condition(conditionId);
-    condition.token0Id = event.params.token0;
-    condition.token1Id = event.params.token1;
-    condition.save();
-  }
-
-  const token0IndexId = tokenIndexId(conditionId, event.params.token0);
-  let token0Index = TokenIndex.load(token0IndexId);
-  if (!token0Index) {
-    token0Index = new TokenIndex(token0IndexId);
-    token0Index.condition = conditionId;
-    token0Index.tokenId = event.params.token0;
-    token0Index.lastPrice = BigInt.zero();
-    token0Index.save();
-  }
-
-  const token1IndexId = tokenIndexId(conditionId, event.params.token1);
-  let token1Index = TokenIndex.load(token1IndexId);
-  if (!token1Index) {
-    token1Index = new TokenIndex(token1IndexId);
-    token1Index.condition = conditionId;
-    token1Index.tokenId = event.params.token1;
-    token1Index.lastPrice = BigInt.zero();
-    token1Index.save();
-  }
-}

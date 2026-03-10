@@ -25,8 +25,6 @@ dataSources:
         - event: OrderFilled(indexed bytes32,indexed address,indexed
             address,uint256,uint256,uint256,uint256,uint256)
           handler: handleOrderFilled
-        - event: TokenRegistered(indexed uint256,indexed uint256,indexed bytes32)
-          handler: handleTokenRegistered
       file: ./src/ctf-exchange.ts
   - kind: ethereum
     name: ConditionalTokens
