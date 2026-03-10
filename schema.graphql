@@ -22,7 +22,7 @@ type TokenIndex @entity(immutable: false) {
   robinResolvedPrice: BigInt
 }
 
-type TokenLookup @entity(immutable: false) {
+type TokenLookup @entity(immutable: true) {
   id: String! # tokenId
   conditionId: Bytes!
 }
