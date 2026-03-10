@@ -78,12 +78,19 @@ async function computeAlternativeTwapData(
   }
 
   // Step 4: Compute TWAP price
+  // Clamp endTimestamp to market resolution time if resolved on Polymarket
+  let clampedEnd = endTimestamp;
+  if (marketInfo.resolved && marketInfo.resolvedTimestamp) {
+    const resolvedTs = BigInt(marketInfo.resolvedTimestamp);
+    if (resolvedTs < clampedEnd) {
+      clampedEnd = resolvedTs;
+    }
+  }
+
   let twapPriceYes: bigint;
   let usedPolymarketSpot = false;
 
-  //TODO doesn't endTimestamp need to clamped to finalization timestamp?
-  //TODO check this in the other locations as well
-  const timeDelta = endTimestamp - startTimestamp;
+  const timeDelta = clampedEnd - startTimestamp;
   if (timeDelta <= 0n) {
     // No time range — use spot price
     twapPriceYes = BigInt(
@@ -95,7 +102,7 @@ async function computeAlternativeTwapData(
       const twapResult = await polymarket.getTwapData(
         marketInfo.yesTokenId,
         Number(startTimestamp),
-        Number(endTimestamp)
+        Number(clampedEnd)
       );
       twapPriceYes = twapResult.twapPriceYes;
     } catch {

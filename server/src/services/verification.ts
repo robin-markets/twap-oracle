@@ -108,10 +108,19 @@ export async function verifyTwapDataBatch(
 
     // ---- TWAP comparison (soft warning) ----
     try {
+      // Clamp endTimestamp to market resolution time if resolved
+      let clampedEnd = item.endTimestamp;
+      if (info.resolved && info.resolvedTimestamp) {
+        const resolvedTs = BigInt(info.resolvedTimestamp);
+        if (resolvedTs < clampedEnd) {
+          clampedEnd = resolvedTs;
+        }
+      }
+
       const twapResult = await polymarket.getTwapData(
         info.yesTokenId,
         Number(item.startTimestamp),
-        Number(item.endTimestamp)
+        Number(clampedEnd)
       );
 
       const subgraphTwap = Number(item.twapData.twapPriceYes);
