@@ -4,19 +4,15 @@ import {
   NegRiskCTFExchange,
   OrderFilled as NegRiskOrderFilled,
 } from "../generated/NegRiskCTFExchange/NegRiskCTFExchange";
-import { ConditionalTokens } from "../generated/ConditionalTokens/ConditionalTokens";
 import { TokenIndex, TokenLookup } from "../generated/schema";
 import {
   COLLATERAL_ASSET_ID,
   COLLATERAL_USDCE,
   COLLATERAL_WCOL,
-  CONDITIONAL_TOKENS_ADDRESS,
-  INDEX_SET_NO,
-  INDEX_SET_YES,
-  PARENT_COLLECTION_ID,
   PRICE_SCALE,
   tokenIndexId,
 } from "./utils";
+import { computePositionId } from "./ctf-utils";
 
 function updateIndexWithPrice(
   tokenIndex: TokenIndex,
@@ -43,20 +39,6 @@ function updateIndexWithPrice(
   tokenIndex.save();
 }
 
-function getTokenId(
-  conditionId: Bytes,
-  collateral: Address,
-  forYes: boolean
-): BigInt {
-  const conditionalTokens = ConditionalTokens.bind(CONDITIONAL_TOKENS_ADDRESS);
-  const collectionId = conditionalTokens.getCollectionId(
-    PARENT_COLLECTION_ID,
-    conditionId,
-    forYes ? INDEX_SET_YES : INDEX_SET_NO
-  );
-  return conditionalTokens.getPositionId(collateral, collectionId);
-}
-
 function ensureTokenIndexes(
   conditionId: Bytes,
   isNegRisk: boolean
@@ -68,7 +50,7 @@ function ensureTokenIndexes(
 
   const collateral = isNegRisk ? COLLATERAL_WCOL : COLLATERAL_USDCE;
   if (!tokenIndexYes) {
-    const yesTokenId = getTokenId(conditionId, collateral, true);
+    const yesTokenId = computePositionId(collateral, conditionId, 0);
     tokenIndexYes = new TokenIndex(yesIndexId);
     tokenIndexYes.conditionId = conditionId;
     tokenIndexYes.tokenIndex = 0;
@@ -77,7 +59,7 @@ function ensureTokenIndexes(
     tokenIndexYes.save();
   }
   if (!tokenIndexNo) {
-    const noTokenId = getTokenId(conditionId, collateral, false);
+    const noTokenId = computePositionId(collateral, conditionId, 1);
     tokenIndexNo = new TokenIndex(noIndexId);
     tokenIndexNo.conditionId = conditionId;
     tokenIndexNo.tokenIndex = 1;
