@@ -11,13 +11,8 @@ import {
 
 const CLOB_CONCURRENCY = 15;
 
-export interface AlternativeTwapResult {
-  twapData: TwapData;
-  usedPolymarketSpot: boolean;
-}
-
 export interface AlternativeTwapBatchResult {
-  results: Map<string, AlternativeTwapResult>;
+  results: Map<string, TwapData>;
   failed: Map<string, string>; // conditionId → error message
 }
 
@@ -33,7 +28,7 @@ async function computeAlternativeTwapData(
   state: RpcMarketState,
   marketInfo: PolymarketMarketInfo | undefined,
   polymarket: IPolymarketDataSource,
-): Promise<AlternativeTwapResult> {
+): Promise<TwapData> {
   const hex = conditionId as Hex;
 
   const startTimestamp =
@@ -58,7 +53,6 @@ async function computeAlternativeTwapData(
 
   // Compute TWAP price
   let twapPriceYes: bigint;
-  let usedPolymarketSpot = false;
 
   const timeDelta = clampedEnd - startTimestamp;
   if (timeDelta <= 0n) {
@@ -71,7 +65,6 @@ async function computeAlternativeTwapData(
     twapPriceYes = BigInt(
       Math.round(marketInfo.yesPrice * Number(PRICE_SCALE)),
     );
-    usedPolymarketSpot = true;
   } else {
     try {
       const twapResult = await polymarket.getTwapData(
@@ -81,17 +74,10 @@ async function computeAlternativeTwapData(
       );
       twapPriceYes = twapResult.twapPriceYes;
     } catch {
-      // CLOB price history failed — use spot price
-      if (marketInfo.yesPrice === undefined) {
-        throw new TwapError(
-          `Cannot compute TWAP for market ${conditionId}: CLOB history failed and no valid spot price`,
-          500,
-        );
-      }
-      twapPriceYes = BigInt(
-        Math.round(marketInfo.yesPrice * Number(PRICE_SCALE)),
+      throw new TwapError(
+        `Cannot compute TWAP for market ${conditionId}: CLOB history call failed.`,
+        500,
       );
-      usedPolymarketSpot = true;
     }
   }
 
@@ -122,16 +108,13 @@ async function computeAlternativeTwapData(
   }
 
   return {
-    twapData: {
-      required: true,
-      conditionId: hex,
-      startTimestamp,
-      endTimestamp,
-      twapPriceYes,
-      marketEndedAt,
-      marketEndYesPrice,
-    },
-    usedPolymarketSpot,
+    required: true,
+    conditionId: hex,
+    startTimestamp,
+    endTimestamp,
+    twapPriceYes,
+    marketEndedAt,
+    marketEndYesPrice,
   };
 }
 
@@ -155,7 +138,7 @@ export async function computeAlternativeTwapDataBatch(
   );
 
   // 2. Early return for markets that don't need TWAP signature
-  const results = new Map<string, AlternativeTwapResult>();
+  const results = new Map<string, TwapData>();
   const failed = new Map<string, string>();
   const needsPolymarket: string[] = [];
 
@@ -163,16 +146,13 @@ export async function computeAlternativeTwapDataBatch(
     const rpcData = rpcBatch.get(id as Hex)!;
     if (!rpcData.twapSignatureRequired) {
       results.set(id, {
-        twapData: {
-          required: false,
-          conditionId: id as Hex,
-          startTimestamp: 0n,
-          endTimestamp: 0n,
-          twapPriceYes: 0n,
-          marketEndedAt: 0n,
-          marketEndYesPrice: 0n,
-        },
-        usedPolymarketSpot: false,
+        required: false,
+        conditionId: id as Hex,
+        startTimestamp: 0n,
+        endTimestamp: 0n,
+        twapPriceYes: 0n,
+        marketEndedAt: 0n,
+        marketEndYesPrice: 0n,
       });
     } else {
       needsPolymarket.push(id);

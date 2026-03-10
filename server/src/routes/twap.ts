@@ -204,17 +204,9 @@ async function handleCompleteFailure(
     failed.push({ conditionId: id, error: message });
   }
 
-  for (const [id, result] of altBatch.results) {
-    if (result.usedPolymarketSpot) {
-      sendNotification(
-        `[WARN] Market ${id}: subgraph down, used Polymarket spot price (CLOB TWAP unavailable)`,
-      ).catch(() => {});
-    }
-  }
-
   const twapData = conditionIds
     .filter((id) => altBatch.results.has(id))
-    .map((id) => altBatch.results.get(id)!.twapData);
+    .map((id) => altBatch.results.get(id)!);
 
   return { twapData, failed };
 }
@@ -309,12 +301,7 @@ async function handleSubgraphData(
       }
 
       for (const [id, result] of altBatch.results) {
-        altTwapMap.set(id, result.twapData);
-        if (result.usedPolymarketSpot) {
-          sendNotification(
-            `[WARN] Market ${id}: subgraph missing, used Polymarket spot price (CLOB TWAP unavailable)`,
-          ).catch(() => {});
-        }
+        altTwapMap.set(id, result);
       }
     } catch (err) {
       // Batch-level failure — all missing markets fail
