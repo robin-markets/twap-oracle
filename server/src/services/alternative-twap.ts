@@ -161,7 +161,10 @@ export async function computeAlternativeTwapDataBatch(
 
   for (const id of conditionIds) {
     const rpcData = rpcBatch.get(id as Hex)!;
-    if (rpcData.state.marketEndedAt > 0n) {
+    if (rpcData.state.marketInitTimestamp === 0n) {
+      // Not initialized on the oracle — contract will silently skip it
+      results.set(id, { ...NO_ACTION_TWAP_DATA, conditionId: id as Hex });
+    } else if (rpcData.state.marketEndedAt > 0n) {
       // Already finalized in contract — no signature needed
       results.set(id, { ...NO_ACTION_TWAP_DATA, conditionId: id as Hex });
     } else if (rpcData.twapSignatureRequired) {
