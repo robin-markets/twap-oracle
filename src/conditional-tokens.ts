@@ -13,9 +13,24 @@ function applyResolvedPrice(
   resolvedPrice: BigInt,
   timestamp: BigInt
 ): void {
-  const timeElapsed = timestamp.minus(tokenIndex.lastUpdatedAt);
+  if (tokenIndex.lastUpdatedAt === null) {
+    tokenIndex.twapIndex = BigInt.zero();
+    tokenIndex.startedAt = timestamp;
+    tokenIndex.lastUpdatedAt = timestamp;
+    tokenIndex.lastPrice = resolvedPrice;
+    tokenIndex.resolvedAt = timestamp;
+    tokenIndex.resolvedPrice = resolvedPrice;
+    return;
+  }
+
+  const lastUpdatedAt = tokenIndex.lastUpdatedAt as BigInt;
+  const timeElapsed = timestamp.minus(lastUpdatedAt);
   if (timeElapsed.gt(BigInt.zero())) {
-    tokenIndex.twapIndex = tokenIndex.twapIndex.plus(
+    let currentTwapIndex = tokenIndex.twapIndex;
+    if (currentTwapIndex === null) {
+      currentTwapIndex = BigInt.zero();
+    }
+    tokenIndex.twapIndex = currentTwapIndex.plus(
       tokenIndex.lastPrice.times(timeElapsed)
     );
   }

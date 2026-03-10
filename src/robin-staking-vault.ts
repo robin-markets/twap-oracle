@@ -20,9 +20,6 @@ function getOrCreateTokenIndex(
     tokenIndex = new TokenIndex(indexId);
     tokenIndex.condition = conditionId;
     tokenIndex.tokenId = tokenId;
-    tokenIndex.twapIndex = BigInt.zero();
-    tokenIndex.startedAt = timestamp;
-    tokenIndex.lastUpdatedAt = timestamp;
     tokenIndex.lastPrice = BigInt.zero();
   }
   return tokenIndex;

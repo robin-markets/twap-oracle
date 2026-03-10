@@ -9,9 +9,9 @@ type TokenIndex @entity(immutable: false) {
   id: String!
   condition: Condition!
   tokenId: BigInt!
-  twapIndex: BigInt! # sum(price(1e6) * seconds)
-  startedAt: BigInt! # timestamp
-  lastUpdatedAt: BigInt! # timestamp
+  twapIndex: BigInt # sum(price(1e6) * seconds)
+  startedAt: BigInt # timestamp
+  lastUpdatedAt: BigInt # timestamp
   lastPrice: BigInt! # 6 decimals
   resolvedAt: BigInt
   resolvedPrice: BigInt # 6 decimals

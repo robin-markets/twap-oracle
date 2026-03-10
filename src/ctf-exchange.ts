@@ -18,9 +18,22 @@ function updateIndexWithPrice(
   price6: BigInt,
   timestamp: BigInt
 ): void {
-  const timeElapsed = timestamp.minus(tokenIndex.lastUpdatedAt);
+  if (tokenIndex.lastUpdatedAt === null) {
+    tokenIndex.twapIndex = BigInt.zero();
+    tokenIndex.startedAt = timestamp;
+    tokenIndex.lastUpdatedAt = timestamp;
+    tokenIndex.lastPrice = price6;
+    return;
+  }
+
+  const lastUpdatedAt = tokenIndex.lastUpdatedAt as BigInt;
+  const timeElapsed = timestamp.minus(lastUpdatedAt);
   if (timeElapsed.gt(BigInt.zero())) {
-    tokenIndex.twapIndex = tokenIndex.twapIndex.plus(
+    let currentTwapIndex = tokenIndex.twapIndex;
+    if (currentTwapIndex === null) {
+      currentTwapIndex = BigInt.zero();
+    }
+    tokenIndex.twapIndex = currentTwapIndex.plus(
       tokenIndex.lastPrice.times(timeElapsed)
     );
   }
@@ -73,9 +86,6 @@ export function handleOrderFilled(event: OrderFilled): void {
     const token0Index = new TokenIndex(tokenIndexId(conditionId, tokenId));
     token0Index.condition = conditionId;
     token0Index.tokenId = tokenId;
-    token0Index.twapIndex = BigInt.zero();
-    token0Index.startedAt = event.block.timestamp;
-    token0Index.lastUpdatedAt = event.block.timestamp;
     token0Index.lastPrice = BigInt.zero();
     token0Index.save();
 
@@ -84,9 +94,6 @@ export function handleOrderFilled(event: OrderFilled): void {
     );
     token1Index.condition = conditionId;
     token1Index.tokenId = complementResult.value;
-    token1Index.twapIndex = BigInt.zero();
-    token1Index.startedAt = event.block.timestamp;
-    token1Index.lastUpdatedAt = event.block.timestamp;
     token1Index.lastPrice = BigInt.zero();
     token1Index.save();
   }
@@ -97,9 +104,6 @@ export function handleOrderFilled(event: OrderFilled): void {
     tokenIndex = new TokenIndex(indexId);
     tokenIndex.condition = conditionId;
     tokenIndex.tokenId = tokenId;
-    tokenIndex.twapIndex = BigInt.zero();
-    tokenIndex.startedAt = event.block.timestamp;
-    tokenIndex.lastUpdatedAt = event.block.timestamp;
     tokenIndex.lastPrice = BigInt.zero();
   }
 
@@ -133,9 +137,6 @@ export function handleTokenRegistered(event: TokenRegistered): void {
     token0Index = new TokenIndex(token0IndexId);
     token0Index.condition = conditionId;
     token0Index.tokenId = event.params.token0;
-    token0Index.twapIndex = BigInt.zero();
-    token0Index.startedAt = event.block.timestamp;
-    token0Index.lastUpdatedAt = event.block.timestamp;
     token0Index.lastPrice = BigInt.zero();
     token0Index.save();
   }
@@ -146,9 +147,6 @@ export function handleTokenRegistered(event: TokenRegistered): void {
     token1Index = new TokenIndex(token1IndexId);
     token1Index.condition = conditionId;
     token1Index.tokenId = event.params.token1;
-    token1Index.twapIndex = BigInt.zero();
-    token1Index.startedAt = event.block.timestamp;
-    token1Index.lastUpdatedAt = event.block.timestamp;
     token1Index.lastPrice = BigInt.zero();
     token1Index.save();
   }
