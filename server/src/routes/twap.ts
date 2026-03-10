@@ -68,15 +68,28 @@ export function createTwapRouter(config: Config): Router {
         return normalized;
       });
 
-      const endTimestamp = BigInt(Math.floor(Date.now() / 1000));
+      const nowSeconds = Math.floor(Date.now() / 1000);
       const cachedPolymarket = new CachedPolymarketDataSource(polymarket);
 
       // ---- Attempt subgraph fetch ----
       let subgraphMarkets: SubgraphMarket[] | null = null;
+      let subgraphBlockTimestamp: number | null = null;
       let subgraphFailed = false;
 
       try {
-        subgraphMarkets = await fetchMarkets(config.subgraphUrl, conditionIds);
+        const fetchResult = await fetchMarkets(config.subgraphUrl, conditionIds);
+        const subgraphLag = nowSeconds - fetchResult.blockTimestamp;
+
+        if (subgraphLag > config.twapGracePeriodSeconds) {
+          subgraphFailed = true;
+          sendNotification(
+            `[ALERT] Subgraph too far behind (${subgraphLag}s lag, grace period ${config.twapGracePeriodSeconds}s), ` +
+              `falling back to RPC+Polymarket for all ${conditionIds.length} markets.`,
+          ).catch(() => {});
+        } else {
+          subgraphMarkets = fetchResult.markets;
+          subgraphBlockTimestamp = fetchResult.blockTimestamp;
+        }
       } catch (err) {
         subgraphFailed = true;
         let message = "";
@@ -96,15 +109,16 @@ export function createTwapRouter(config: Config): Router {
       let result: HandlerResult;
 
       if (subgraphFailed || subgraphMarkets === null) {
-        // ===== FLOW C: Complete subgraph failure =====
+        // ===== FLOW C: Complete subgraph failure — use Date.now() =====
         result = await handleCompleteFailure(
           conditionIds,
-          endTimestamp,
+          BigInt(nowSeconds),
           rpc,
           cachedPolymarket,
         );
       } else {
-        // ===== FLOW A/B: Subgraph returned data =====
+        // ===== FLOW A/B: Subgraph returned data — use subgraph block timestamp =====
+        const endTimestamp = BigInt(subgraphBlockTimestamp!);
         result = await handleSubgraphData(
           conditionIds,
           endTimestamp,

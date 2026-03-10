@@ -8,6 +8,7 @@ export interface Config {
   chainId: number;
   port: number;
   twapDivergenceThresholdPct: number;
+  twapGracePeriodSeconds: number;
 }
 
 function requireEnv(name: string): string {
@@ -27,7 +28,10 @@ export function loadConfig(): Config {
     chainId: Number(process.env.CHAIN_ID ?? "137"),
     port: Number(process.env.PORT ?? "3000"),
     twapDivergenceThresholdPct: Number(
-      process.env.TWAP_DIVERGENCE_THRESHOLD_PCT ?? "10"
+      process.env.TWAP_DIVERGENCE_THRESHOLD_PCT ?? "10",
+    ),
+    twapGracePeriodSeconds: Number(
+      process.env.TWAP_GRACE_PERIOD_SECONDS ?? "120",
     ),
   };
 }

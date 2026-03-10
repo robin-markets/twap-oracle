@@ -1,7 +1,12 @@
-import { DataSourceError, type SubgraphMarket } from "../types.js";
+import { DataSourceError, type SubgraphMarket, type SubgraphFetchResult } from "../types.js";
 
 const MARKETS_QUERY = `
   query GetMarketsForTwap($conditionIds: [String!]!) {
+    _meta {
+      block {
+        timestamp
+      }
+    }
     markets(where: { id_in: $conditionIds }) {
       id
       yesToken {
@@ -35,14 +40,17 @@ const MARKETS_QUERY = `
 `;
 
 interface GraphQLResponse {
-  data?: { markets: SubgraphMarket[] };
+  data?: {
+    _meta: { block: { timestamp: number } };
+    markets: SubgraphMarket[];
+  };
   errors?: Array<{ message: string }>;
 }
 
 export async function fetchMarkets(
   subgraphUrl: string,
   conditionIds: string[]
-): Promise<SubgraphMarket[]> {
+): Promise<SubgraphFetchResult> {
   let response: Response;
   try {
     response = await fetch(subgraphUrl, {
@@ -80,5 +88,8 @@ export async function fetchMarkets(
     throw new DataSourceError("Subgraph returned no data");
   }
 
-  return json.data.markets;
+  return {
+    markets: json.data.markets,
+    blockTimestamp: json.data._meta.block.timestamp,
+  };
 }

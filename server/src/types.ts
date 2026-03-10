@@ -47,6 +47,11 @@ export interface SubgraphMarket {
   robinResolvedNoPrice: string | null;
 }
 
+export interface SubgraphFetchResult {
+  markets: SubgraphMarket[];
+  blockTimestamp: number;
+}
+
 // ---- Polymarket types ----
 
 export interface PolymarketMarketInfo {
