@@ -114,7 +114,7 @@ function hashBatchTwapData(markets: TwapData[]): Hex {
  *   digest = keccak256("\x19\x01" || domainSeparator || structHash)
  *   signature = ECDSA.sign(digest, privateKey)
  *
- * //TODO Don't sign if all markets are required=false
+ * If no market requires TWAP, returns an empty signature (no signing needed).
  */
 export async function signBatchTwapData(
   markets: TwapData[],
@@ -122,6 +122,10 @@ export async function signBatchTwapData(
   chainId: number,
   vaultAddress: Hex
 ): Promise<SignedBatchTwapData> {
+  if (!markets.some((m) => m.required)) {
+    return { markets, signature: "0x" };
+  }
+
   const domainSeparator = buildDomainSeparator(chainId, vaultAddress);
   const structHash = hashBatchTwapData(markets);
 
