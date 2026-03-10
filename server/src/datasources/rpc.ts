@@ -6,7 +6,6 @@ export interface RpcMarketState {
   twapAccumulatorYes: bigint;
   marketEndedAt: bigint;
   marketEndYesPrice: bigint;
-  twapRequired: boolean;
   marketInitTimestamp: bigint;
 }
 
@@ -81,7 +80,6 @@ export class RpcDataSource {
       twapAccumulatorYes: BigInt(result.twapAccumulatorYes),
       marketEndedAt: BigInt(result.marketEndedAt),
       marketEndYesPrice: BigInt(result.marketEndYesPrice),
-      twapRequired: result.twapRequired,
       marketInitTimestamp: BigInt(result.marketInitTimestamp),
     };
   }
@@ -147,7 +145,6 @@ export class RpcDataSource {
           twapAccumulatorYes: BigInt(r.twapAccumulatorYes),
           marketEndedAt: BigInt(r.marketEndedAt),
           marketEndYesPrice: BigInt(r.marketEndYesPrice),
-          twapRequired: r.twapRequired,
           marketInitTimestamp: BigInt(r.marketInitTimestamp),
         },
         twapSignatureRequired: twapResult.result as boolean,
