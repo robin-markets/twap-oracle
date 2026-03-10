@@ -1,5 +1,5 @@
 type TokenIndex @entity(immutable: false) {
-  id: Bytes! # conditionId-tokenIndex
+  id: String! # conditionId-tokenIndex
   conditionId: Bytes!
   tokenIndex: Int! # 0 for yes, 1 for no
   tokenId: BigInt!
