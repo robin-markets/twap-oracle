@@ -8,6 +8,8 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import type { TwapData, SignedBatchTwapData } from "../types.js";
 
+//TODO can this whole thing be simplified by using a library function?
+
 // Must exactly match the contract's SignaturesMixin.sol
 // Note the space after "required," — this is intentional and must be byte-identical.
 const TWAP_TYPEHASH = keccak256(
