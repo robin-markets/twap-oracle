@@ -9,7 +9,7 @@ const DEFAULT_PRICE = PRICE_SCALE / 2n; // 500_000 = 50%
  */
 export function needsFallbackPrice(
   market: SubgraphMarket,
-  endTimestamp: bigint,
+  endTimestamp: bigint
 ): boolean {
   // Robin already resolved — returns required: false, no fallback needed
   if (market.robinResolvedAt !== null) return false;
@@ -39,7 +39,7 @@ export function needsFallbackPrice(
 export function computeTwapData(
   market: SubgraphMarket,
   endTimestamp: bigint,
-  fallbackPrice?: bigint,
+  fallbackPrice?: bigint
 ): TwapData {
   const conditionId = market.id as Hex;
   const fallback = fallbackPrice ?? DEFAULT_PRICE;
@@ -67,8 +67,15 @@ export function computeTwapData(
   const timeDelta = endTimestamp - startTimestamp;
 
   // If timeDelta is zero or negative, use fallback price
+  //TODO could we say that fallback is only used if also yesToken.lastPrice is null? Otherwise we just use lastPrice to submit. Then we don't need to load the fallback via API. Fill also have to update needsFallbackPrice
   if (timeDelta <= 0n) {
-    return buildTwapData(conditionId, startTimestamp, endTimestamp, fallback, market);
+    return buildTwapData(
+      conditionId,
+      startTimestamp,
+      endTimestamp,
+      fallback,
+      market
+    );
   }
 
   // Compute effective twapIndex for the YES token
@@ -107,7 +114,13 @@ export function computeTwapData(
   if (twapPriceYes < 0n) twapPriceYes = 0n;
   if (twapPriceYes > PRICE_SCALE) twapPriceYes = PRICE_SCALE;
 
-  return buildTwapData(conditionId, startTimestamp, endTimestamp, twapPriceYes, market);
+  return buildTwapData(
+    conditionId,
+    startTimestamp,
+    endTimestamp,
+    twapPriceYes,
+    market
+  );
 }
 
 /**
@@ -119,17 +132,14 @@ function buildTwapData(
   startTimestamp: bigint,
   endTimestamp: bigint,
   twapPriceYes: bigint,
-  market: SubgraphMarket,
+  market: SubgraphMarket
 ): TwapData {
   let marketEndedAt = 0n;
   let marketEndYesPrice = 0n;
 
   // If the subgraph indexed resolution but Robin hasn't finalized yet,
   // include the resolution data so the contract can finalize.
-  if (
-    market.yesToken.resolvedAt !== null &&
-    market.robinResolvedAt === null
-  ) {
+  if (market.yesToken.resolvedAt !== null && market.robinResolvedAt === null) {
     marketEndedAt = BigInt(market.yesToken.resolvedAt);
     marketEndYesPrice = BigInt(market.yesToken.resolvedPrice!);
 

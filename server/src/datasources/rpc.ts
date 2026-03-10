@@ -11,6 +11,7 @@ export interface RpcMarketState {
 }
 
 // ABI subset for the view functions we need
+//TODO store abi somewhere else when we have the mono repo
 const vaultAbi = [
   {
     type: "function",
@@ -57,10 +58,7 @@ const vaultAbi = [
 export class RpcDataSource {
   private client: PublicClient;
 
-  constructor(
-    rpcUrl: string,
-    private vaultAddress: Hex,
-  ) {
+  constructor(rpcUrl: string, private vaultAddress: Hex) {
     this.client = createPublicClient({
       chain: polygon,
       transport: http(rpcUrl),
@@ -85,6 +83,7 @@ export class RpcDataSource {
     };
   }
 
+  //TODO we need isTwapSignatureRequired instead
   async isMarketTwapRequired(conditionId: Hex): Promise<boolean> {
     return this.client.readContract({
       address: this.vaultAddress,

@@ -12,6 +12,7 @@ interface GammaMarketResponse {
   clobTokenIds: string; // JSON string like '["123...", "456..."]'
   active: boolean;
   closed: boolean;
+  closedTime: string | null; // e.g. "2021-10-05 03:54:25+00"
 }
 
 interface PriceHistoryPoint {
@@ -71,9 +72,7 @@ export class PolymarketDataSource {
       const prices = JSON.parse(market.outcomePrices) as string[];
       const tokenIds = JSON.parse(market.clobTokenIds) as string[];
 
-      const yesIdx = outcomes.findIndex(
-        (o) => o.toLowerCase() === "yes"
-      );
+      const yesIdx = outcomes.findIndex((o) => o.toLowerCase() === "yes");
       if (yesIdx === -1) continue;
 
       const noIdx = yesIdx === 0 ? 1 : 0;
@@ -82,8 +81,14 @@ export class PolymarketDataSource {
 
       const resolved = market.closed === true;
       let resolvedYesPrice: number | undefined;
+      let resolvedTimestamp: number | undefined;
       if (resolved) {
         resolvedYesPrice = yesPrice;
+        if (market.closedTime) {
+          resolvedTimestamp = Math.floor(
+            new Date(market.closedTime).getTime() / 1000
+          );
+        }
       }
 
       result.set(market.conditionId, {
@@ -91,6 +96,7 @@ export class PolymarketDataSource {
         noPrice,
         resolved,
         resolvedYesPrice,
+        resolvedTimestamp,
         yesTokenId: tokenIds[yesIdx],
       });
     }
@@ -111,10 +117,14 @@ export class PolymarketDataSource {
   async getTwapData(
     yesTokenId: string,
     startTime: number,
+    //TODO is this clamped to finalization timestamp?
     endTime: number
   ): Promise<{ twapPriceYes: bigint }> {
     const durationMinutes = (endTime - startTime) / 60;
-    const fidelity = Math.max(1, Math.ceil(durationMinutes / MAX_PRICE_HISTORY_POINTS));
+    const fidelity = Math.max(
+      1,
+      Math.ceil(durationMinutes / MAX_PRICE_HISTORY_POINTS)
+    );
 
     const params = new URLSearchParams({
       market: yesTokenId,

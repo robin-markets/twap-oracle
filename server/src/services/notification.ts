@@ -1,6 +1,24 @@
+const DEDUP_WINDOW_MS = 1 * 60 * 1000; // 5 minutes
+const recentMessages = new Map<string, number>();
+
 export async function sendNotification(message: string) {
+  // Deduplication: skip if same message was sent within the window
+  const now = Date.now();
+  const lastSent = recentMessages.get(message);
+  if (lastSent && now - lastSent < DEDUP_WINDOW_MS) {
+    return;
+  }
+  recentMessages.set(message, now);
+
+  // Clean up old entries periodically
+  if (recentMessages.size > 200) {
+    for (const [msg, ts] of recentMessages) {
+      if (now - ts >= DEDUP_WINDOW_MS) recentMessages.delete(msg);
+    }
+  }
+
   if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_GROUP_CHAT_ID) {
-    console.log("📢 Test Notification, no token or chat id:", message);
+    console.log("Notification (no telegram configured):", message);
     return;
   }
   const response = await fetch(
@@ -19,7 +37,5 @@ export async function sendNotification(message: string) {
   if (!response.ok) {
     console.error(await response.json());
     console.error(response.statusText);
-    return;
   }
-  const data = await response.json();
 }

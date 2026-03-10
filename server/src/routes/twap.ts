@@ -2,32 +2,39 @@ import { Router, type Request, type Response } from "express";
 import type { Config } from "../config.js";
 import { fetchMarkets } from "../datasources/subgraph.js";
 import { PolymarketDataSource } from "../datasources/polymarket.js";
+import { RpcDataSource } from "../datasources/rpc.js";
 import {
   computeTwapData,
   needsFallbackPrice,
 } from "../services/twap-computation.js";
+import { computeAlternativeTwapDataBatch } from "../services/alternative-twap.js";
+import { verifyTwapDataBatch } from "../services/verification.js";
 import { signBatchTwapData } from "../services/signing.js";
+import { sendNotification } from "../services/notification.js";
 import {
   PRICE_SCALE,
+  DataSourceError,
   ValidationError,
   TwapError,
+  type TwapData,
   type TwapRequest,
   type TwapResponse,
+  type SubgraphMarket,
 } from "../types.js";
 
 const BYTES32_REGEX = /^0x[0-9a-f]{64}$/i;
 const MAX_CONDITION_IDS = 50;
 
-const polymarket = new PolymarketDataSource();
-
 export function createTwapRouter(config: Config): Router {
   const router = Router();
+  const polymarket = new PolymarketDataSource();
+  const rpc = new RpcDataSource(config.rpcUrl, config.vaultAddress);
 
   router.post("/", async (req: Request, res: Response) => {
     try {
       const body = req.body as TwapRequest;
 
-      // Validate request
+      // ---- Validation ----
       if (!body.conditionIds || !Array.isArray(body.conditionIds)) {
         throw new ValidationError("conditionIds must be a non-empty array");
       }
@@ -40,7 +47,6 @@ export function createTwapRouter(config: Config): Router {
         );
       }
 
-      // Normalize to lowercase (subgraph stores conditionId.toHex() which is lowercase)
       const conditionIds = body.conditionIds.map((id) => {
         const normalized = id.toLowerCase();
         if (!BYTES32_REGEX.test(normalized)) {
@@ -54,50 +60,51 @@ export function createTwapRouter(config: Config): Router {
 
       const endTimestamp = BigInt(Math.floor(Date.now() / 1000));
 
-      // Fetch market data from subgraph
-      const markets = await fetchMarkets(config.subgraphUrl, conditionIds);
+      // ---- Attempt subgraph fetch ----
+      let subgraphMarkets: SubgraphMarket[] | null = null;
+      let subgraphFailed = false;
 
-      // Build lookup map
-      const marketMap = new Map(markets.map((m) => [m.id, m]));
+      try {
+        subgraphMarkets = await fetchMarkets(config.subgraphUrl, conditionIds);
+      } catch (err) {
+        subgraphFailed = true;
+        let message = "";
+        if (err instanceof DataSourceError) {
+          message = `Error: ${err.message}`;
+        } else {
+          message = `Unknown error: ${
+            err instanceof Error ? err.message : String(err)
+          }`;
+        }
+        sendNotification(
+          `[ALERT] Subgraph completely unavailable, falling back to RPC+Polymarket ` +
+            `for all ${conditionIds.length} markets. Error: ${message}`
+        ).catch(() => {});
+      }
 
-      // Check all requested markets exist
-      //TODO if a market is missing, we don't want to throw, we want to compute from alternative method (polymarket)
-      const missing = conditionIds.filter((id) => !marketMap.has(id));
-      if (missing.length > 0) {
-        throw new ValidationError(
-          `Markets not found: ${missing.join(", ")}`,
-          "These conditionIds are not initialized in the subgraph"
+      let twapDataArray: TwapData[];
+
+      if (subgraphFailed || subgraphMarkets === null) {
+        // ===== FLOW C: Complete subgraph failure =====
+        twapDataArray = await handleCompleteFailure(
+          conditionIds,
+          endTimestamp,
+          rpc,
+          polymarket
+        );
+      } else {
+        // ===== FLOW A/B: Subgraph returned data =====
+        twapDataArray = await handleSubgraphData(
+          conditionIds,
+          endTimestamp,
+          subgraphMarkets,
+          rpc,
+          polymarket,
+          config
         );
       }
 
-      // Pre-check which markets need a fallback price from Polymarket
-      const needsFallbackIds = conditionIds.filter((id) =>
-        needsFallbackPrice(marketMap.get(id)!, endTimestamp)
-      );
-
-      // Batch-fetch only the markets that need fallback (single request)
-      let fallbackMap = new Map<string, bigint>();
-      if (needsFallbackIds.length > 0) {
-        try {
-          const infoMap = await polymarket.getMarketInfoBatch(needsFallbackIds);
-          for (const [id, info] of infoMap) {
-            fallbackMap.set(
-              id,
-              BigInt(Math.round(info.yesPrice * Number(PRICE_SCALE)))
-            );
-          }
-        } catch {
-          // Best-effort — proceed without fallback prices
-        }
-      }
-
-      // Compute TwapData for each market in request order
-      const twapDataArray = conditionIds.map((id) => {
-        const market = marketMap.get(id)!;
-        return computeTwapData(market, endTimestamp, fallbackMap.get(id));
-      });
-
-      // Sign the batch
+      // ---- Sign and respond ----
       const signed = await signBatchTwapData(
         twapDataArray,
         config.twapSignerPrivateKey,
@@ -105,7 +112,6 @@ export function createTwapRouter(config: Config): Router {
         config.vaultAddress
       );
 
-      // Serialize bigints to decimal strings for JSON
       const response: TwapResponse = {
         markets: signed.markets.map((m) => ({
           required: m.required,
@@ -121,6 +127,10 @@ export function createTwapRouter(config: Config): Router {
 
       res.json(response);
     } catch (err) {
+      sendNotification(
+        `[CRITICAL] Unrecoverable TWAP oracle failure at signing: ` +
+          `${err instanceof Error ? err.message : String(err)}`
+      ).catch(() => {});
       if (err instanceof TwapError) {
         res
           .status(err.statusCode)
@@ -134,4 +144,148 @@ export function createTwapRouter(config: Config): Router {
   });
 
   return router;
+}
+
+/**
+ * Flow C: Subgraph completely unavailable.
+ * Compute all TwapData from RPC + Polymarket.
+ */
+async function handleCompleteFailure(
+  conditionIds: string[],
+  endTimestamp: bigint,
+  rpc: RpcDataSource,
+  polymarket: PolymarketDataSource
+): Promise<TwapData[]> {
+  const altResults = await computeAlternativeTwapDataBatch(
+    conditionIds,
+    endTimestamp,
+    rpc,
+    polymarket
+  );
+
+  for (const [id, result] of altResults) {
+    if (result.usedDefaultPrice) {
+      sendNotification(
+        `[ALERT] Market ${id}: subgraph down + Polymarket unreachable, used DEFAULT_PRICE (50%)`
+      ).catch(() => {});
+    } else if (result.usedPolymarketSpot) {
+      sendNotification(
+        `[WARN] Market ${id}: subgraph down, used Polymarket spot price (CLOB TWAP unavailable)`
+      ).catch(() => {});
+    }
+  }
+
+  return conditionIds.map((id) => altResults.get(id)!.twapData);
+}
+
+/**
+ * Flow A/B: Subgraph returned data.
+ * Use subgraph for found markets, RPC+Polymarket for missing ones.
+ * Verify subgraph-sourced markets against Polymarket.
+ */
+async function handleSubgraphData(
+  conditionIds: string[],
+  endTimestamp: bigint,
+  subgraphMarkets: SubgraphMarket[],
+  rpc: RpcDataSource,
+  polymarket: PolymarketDataSource,
+  config: Config
+): Promise<TwapData[]> {
+  const marketMap = new Map(subgraphMarkets.map((m) => [m.id, m]));
+  const foundIds = conditionIds.filter((id) => marketMap.has(id));
+  const missingIds = conditionIds.filter((id) => !marketMap.has(id));
+
+  // ---- Compute TwapData for subgraph markets ----
+  const needsFallbackIds = foundIds.filter((id) =>
+    needsFallbackPrice(marketMap.get(id)!, endTimestamp)
+  );
+
+  let fallbackMap = new Map<string, bigint>();
+  if (needsFallbackIds.length > 0) {
+    try {
+      const infoMap = await polymarket.getMarketInfoBatch(needsFallbackIds);
+      for (const [id, info] of infoMap) {
+        fallbackMap.set(
+          id,
+          BigInt(Math.round(info.yesPrice * Number(PRICE_SCALE)))
+        );
+      }
+    } catch {
+      // Best-effort — markets will use DEFAULT_PRICE
+    }
+  }
+
+  const subgraphTwapMap = new Map<string, TwapData>();
+  for (const id of foundIds) {
+    const market = marketMap.get(id)!;
+    const fallbackPrice = fallbackMap.get(id);
+    const twapData = computeTwapData(market, endTimestamp, fallbackPrice);
+    subgraphTwapMap.set(id, twapData);
+
+    // Notify about fallback usage
+    if (needsFallbackPrice(market, endTimestamp)) {
+      if (fallbackPrice !== undefined) {
+        sendNotification(
+          `[INFO] Market ${id}: used Polymarket spot price as fallback in subgraph TWAP computation`
+        ).catch(() => {});
+      } else {
+        sendNotification(
+          `[WARN] Market ${id}: used DEFAULT_PRICE (50%) — Polymarket fallback also unavailable`
+        ).catch(() => {});
+      }
+    }
+  }
+
+  // ---- Handle missing markets (Flow B) ----
+  let altTwapMap = new Map<string, TwapData>();
+  if (missingIds.length > 0) {
+    sendNotification(
+      `[ALERT] Subgraph partial failure: ${missingIds.length}/${conditionIds.length} markets missing ` +
+        `(${missingIds.join(", ")}). Falling back to RPC+Polymarket.`
+    ).catch(() => {});
+
+    const altResults = await computeAlternativeTwapDataBatch(
+      missingIds,
+      endTimestamp,
+      rpc,
+      polymarket
+    );
+
+    for (const [id, result] of altResults) {
+      altTwapMap.set(id, result.twapData);
+      if (result.usedDefaultPrice) {
+        sendNotification(
+          `[ALERT] Market ${id}: subgraph missing + Polymarket unreachable, used DEFAULT_PRICE (50%)`
+        ).catch(() => {});
+      } else if (result.usedPolymarketSpot) {
+        sendNotification(
+          `[WARN] Market ${id}: subgraph missing, used Polymarket spot price (CLOB TWAP unavailable)`
+        ).catch(() => {});
+      }
+    }
+  }
+
+  // ---- Verify subgraph-sourced markets against Polymarket ----
+  const verificationInputs = foundIds
+    .filter((id) => subgraphTwapMap.get(id)!.required)
+    .map((id) => {
+      const twapData = subgraphTwapMap.get(id)!;
+      const market = marketMap.get(id)!;
+      const startTimestamp =
+        market.robinLastUpdatedAt !== null
+          ? BigInt(market.robinLastUpdatedAt)
+          : BigInt(market.robinInitializedAt);
+      return { twapData, startTimestamp, endTimestamp };
+    });
+
+  //TODO we already loaded market data in some cases for fallback price, but will load them again for verification?
+  //TODO veryify by looking at all the usages of polymarket.getMarketInfo(Batch)
+  await verifyTwapDataBatch(verificationInputs, polymarket, {
+    twapDivergenceThresholdPct: config.twapDivergenceThresholdPct,
+  });
+
+  // ---- Merge in request order ----
+  return conditionIds.map(
+    (id) => subgraphTwapMap.get(id) ?? altTwapMap.get(id)!
+  );
 }

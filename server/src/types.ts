@@ -54,6 +54,7 @@ export interface PolymarketMarketInfo {
   noPrice: number;
   resolved: boolean;
   resolvedYesPrice?: number;
+  resolvedTimestamp?: number;
   yesTokenId: string;
 }
 
@@ -99,5 +100,11 @@ export class ValidationError extends TwapError {
 export class DataSourceError extends TwapError {
   constructor(message: string, details?: string) {
     super(message, 502, details);
+  }
+}
+
+export class ResolutionMismatchError extends TwapError {
+  constructor(conditionId: string, details: string) {
+    super(`Resolution data mismatch for market ${conditionId}`, 409, details);
   }
 }

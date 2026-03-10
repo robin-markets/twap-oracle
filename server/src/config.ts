@@ -7,6 +7,7 @@ export interface Config {
   vaultAddress: Hex;
   chainId: number;
   port: number;
+  twapDivergenceThresholdPct: number;
 }
 
 function requireEnv(name: string): string {
@@ -25,5 +26,8 @@ export function loadConfig(): Config {
     vaultAddress: requireEnv("VAULT_ADDRESS") as Hex,
     chainId: Number(process.env.CHAIN_ID ?? "137"),
     port: Number(process.env.PORT ?? "3000"),
+    twapDivergenceThresholdPct: Number(
+      process.env.TWAP_DIVERGENCE_THRESHOLD_PCT ?? "10"
+    ),
   };
 }
