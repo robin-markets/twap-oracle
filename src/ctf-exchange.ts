@@ -5,7 +5,7 @@ import {
   OrderFilled as NegRiskOrderFilled,
 } from "../generated/NegRiskCTFExchange/NegRiskCTFExchange";
 import { ConditionalTokens } from "../generated/ConditionalTokens/ConditionalTokens";
-import { TokenIndex } from "../generated/schema";
+import { TokenIndex, TokenLookup } from "../generated/schema";
 import {
   COLLATERAL_ASSET_ID,
   COLLATERAL_USDCE,
@@ -93,13 +93,24 @@ function getConditionId(
   tokenId: BigInt,
   isNegRisk: boolean
 ): Bytes | null {
+  const lookupId = tokenId.toString();
+  const existingLookup = TokenLookup.load(lookupId);
+  if (existingLookup) {
+    return existingLookup.conditionId;
+  }
+
   const contract = CTFExchange.bind(contractAddress); //Should work for NegRisk and non-NegRisk
   const negRiskContract = NegRiskCTFExchange.bind(contractAddress);
   const conditionResult = isNegRisk
     ? negRiskContract.try_getConditionId(tokenId)
     : contract.try_getConditionId(tokenId);
   let conditionId: Bytes | null = null;
-  if (!conditionResult.reverted) conditionId = conditionResult.value;
+  if (!conditionResult.reverted) {
+    conditionId = conditionResult.value;
+    const lookup = new TokenLookup(lookupId);
+    lookup.conditionId = conditionId;
+    lookup.save();
+  }
   return conditionId;
 }
 
