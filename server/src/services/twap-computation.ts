@@ -70,16 +70,27 @@ export function computeTwapData(
       ? BigInt(market.robinLastUpdatedAt)
       : BigInt(market.robinInitializedAt);
 
-  const timeDelta = endTimestamp - startTimestamp;
+  // Clamp calculation end to resolution time if resolved.
+  // The contract's _applyFinalTwap only applies twapPriceYes for the period
+  // up to marketEndedAt, then uses the fixed resolution price after that.
+  // So twapPriceYes must be the average over [startTimestamp, resolvedAt].
+  const yesToken = market.yesToken;
+  let clampedEnd = endTimestamp;
+  if (yesToken.resolvedAt !== null) {
+    const resolvedAt = BigInt(yesToken.resolvedAt);
+    if (resolvedAt < clampedEnd) {
+      clampedEnd = resolvedAt;
+    }
+  }
+
+  const timeDelta = clampedEnd - startTimestamp;
 
   // If timeDelta is zero or negative, use lastPrice if available, otherwise fallback
   if (timeDelta <= 0n) {
     //Usage of DEFAULT PRICE here is ok because it's only for small deltas
     const fallback = fallbackPrice ?? DEFAULT_PRICE;
     const price =
-      market.yesToken.lastPrice !== null
-        ? BigInt(market.yesToken.lastPrice)
-        : fallback;
+      yesToken.lastPrice !== null ? BigInt(yesToken.lastPrice) : fallback;
     return buildTwapData(
       conditionId,
       startTimestamp,
@@ -90,18 +101,14 @@ export function computeTwapData(
   }
 
   // Compute effective twapIndex for the YES token
-  const yesToken = market.yesToken;
   let effectiveTwapIndex = BigInt(yesToken.twapIndex);
 
-  if (yesToken.resolvedAt !== null) {
-    // Token resolved: twapIndex is frozen at resolvedAt by closeTwap().
-    // No extrapolation beyond resolution.
-  } else if (yesToken.lastUpdatedAt !== null && yesToken.lastPrice !== null) {
-    // Normal case: extrapolate from last trade to endTimestamp
+  if (yesToken.lastUpdatedAt !== null && yesToken.lastPrice !== null) {
+    // Extrapolate from last trade to calcEnd (capped at resolution if resolved)
     const lastUpdatedAt = BigInt(yesToken.lastUpdatedAt);
     const lastPrice = BigInt(yesToken.lastPrice);
-    if (endTimestamp > lastUpdatedAt) {
-      effectiveTwapIndex += lastPrice * (endTimestamp - lastUpdatedAt);
+    if (clampedEnd > lastUpdatedAt) {
+      effectiveTwapIndex += lastPrice * (clampedEnd - lastUpdatedAt);
     }
   }
   // else: no trades at all — effectiveTwapIndex stays at 0 (or whatever twapIndex is)
@@ -122,6 +129,8 @@ export function computeTwapData(
         500,
       );
     twapPriceYes = fallbackPrice;
+  } else if (exchangeDelta <= 0n) {
+    twapPriceYes = BigInt(yesToken.lastPrice!);
   } else {
     twapPriceYes = exchangeDelta / timeDelta;
   }
