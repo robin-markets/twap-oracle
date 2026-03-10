@@ -47,14 +47,24 @@ export function handleTwapUpdated(event: TwapUpdated): void {
   market.robinLastUpdatedAt = event.params.timestamp;
   market.robinTwapIndexYes = event.params.twapAccumulatorYes;
 
-  // Snapshot current exchange twapIndex for next oracle computation
+  // Snapshot current exchange twapIndex for next oracle computation (extrapolated)
   const yesToken = TokenIndex.load(market.yesToken);
   if (yesToken) {
-    market.twapSnapshotYes = yesToken.twapIndex;
+    if (yesToken.lastUpdatedAt !== null && yesToken.lastPrice !== null) {
+      const gap = event.block.timestamp.minus(yesToken.lastUpdatedAt as BigInt);
+      market.twapSnapshotYes = yesToken.twapIndex.plus(
+        (yesToken.lastPrice as BigInt).times(gap),
+      );
+    }
   }
   const noToken = TokenIndex.load(market.noToken);
   if (noToken) {
-    market.twapSnapshotNo = noToken.twapIndex;
+    if (noToken.lastUpdatedAt !== null && noToken.lastPrice !== null) {
+      const gap = event.block.timestamp.minus(noToken.lastUpdatedAt as BigInt);
+      market.twapSnapshotNo = noToken.twapIndex.plus(
+        (noToken.lastPrice as BigInt).times(gap),
+      );
+    }
   }
 
   market.save();
@@ -68,7 +78,7 @@ export function handleMarketFinalized(event: MarketFinalized): void {
   market.robinResolvedAt = event.params.marketEndedAt;
   market.robinResolvedYesPrice = event.params.marketEndYesPrice;
   market.robinResolvedNoPrice = PRICE_SCALE.minus(
-    event.params.marketEndYesPrice
+    event.params.marketEndYesPrice,
   );
   market.save();
 }
