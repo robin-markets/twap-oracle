@@ -1,62 +1,122 @@
-import { BigInt, Bytes } from "@graphprotocol/graph-ts";
+import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
+import { CTFExchange, OrderFilled } from "../generated/CTFExchange/CTFExchange";
+import { OrderFilled as NegRiskOrderFilled } from "../generated/NegRiskCTFExchange/NegRiskCTFExchange";
+import { ConditionalTokens } from "../generated/ConditionalTokens/ConditionalTokens";
+import { TokenIndex } from "../generated/schema";
 import {
-  CTFExchange,
-  OrderFilled,
-  TokenRegistered,
-} from "../generated/CTFExchange/CTFExchange";
-import { Condition, TokenIndex } from "../generated/schema";
-
-const COLLATERAL_ASSET_ID = BigInt.fromI32(0);
-const PRICE_SCALE = BigInt.fromI32(1000000);
-
-function tokenIndexId(conditionId: Bytes, tokenId: BigInt): string {
-  return conditionId.toHex().concat(tokenId.toString());
-}
+  COLLATERAL_ASSET_ID,
+  COLLATERAL_USDCE,
+  COLLATERAL_WCOL,
+  CONDITIONAL_TOKENS_ADDRESS,
+  INDEX_SET_NO,
+  INDEX_SET_YES,
+  PARENT_COLLECTION_ID,
+  PRICE_SCALE,
+  tokenIndexId,
+} from "./utils";
 
 function updateIndexWithPrice(
   tokenIndex: TokenIndex,
   price6: BigInt,
   timestamp: BigInt
 ): void {
-  if (tokenIndex.lastUpdatedAt === null) {
-    tokenIndex.twapIndex = BigInt.zero();
+  // On first update, we need to store the last price before we can update the index next time.
+  if (tokenIndex.lastUpdatedAt === null || tokenIndex.lastPrice === null) {
     tokenIndex.startedAt = timestamp;
     tokenIndex.lastUpdatedAt = timestamp;
     tokenIndex.lastPrice = price6;
+    tokenIndex.save();
     return;
   }
 
-  const lastUpdatedAt = tokenIndex.lastUpdatedAt as BigInt;
+  const lastUpdatedAt = tokenIndex.lastUpdatedAt as BigInt; //already checked null above
   const timeElapsed = timestamp.minus(lastUpdatedAt);
-  if (timeElapsed.gt(BigInt.zero())) {
-    let currentTwapIndex = tokenIndex.twapIndex;
-    if (currentTwapIndex === null) {
-      currentTwapIndex = BigInt.zero();
-    }
-    tokenIndex.twapIndex = currentTwapIndex.plus(
-      tokenIndex.lastPrice.times(timeElapsed)
-    );
-  }
+  const lastPrice = tokenIndex.lastPrice as BigInt; //already checked null above
+  tokenIndex.twapIndex = tokenIndex.twapIndex.plus(
+    lastPrice.times(timeElapsed)
+  );
   tokenIndex.lastPrice = price6;
   tokenIndex.lastUpdatedAt = timestamp;
+  tokenIndex.save();
 }
 
-export function handleOrderFilled(event: OrderFilled): void {
-  const makerAssetId = event.params.makerAssetId;
-  const takerAssetId = event.params.takerAssetId;
+function getTokenId(
+  conditionId: Bytes,
+  collateral: Address,
+  forYes: boolean
+): BigInt {
+  const conditionalTokens = ConditionalTokens.bind(CONDITIONAL_TOKENS_ADDRESS);
+  const collectionId = conditionalTokens.getCollectionId(
+    PARENT_COLLECTION_ID,
+    conditionId,
+    forYes ? INDEX_SET_YES : INDEX_SET_NO
+  );
+  return conditionalTokens.getPositionId(collateral, collectionId);
+}
 
+function ensureTokenIndexes(
+  conditionId: Bytes,
+  isNegRisk: boolean
+): TokenIndex[] {
+  const yesIndexId = tokenIndexId(conditionId, 0);
+  let tokenIndexYes = TokenIndex.load(yesIndexId);
+  const noIndexId = tokenIndexId(conditionId, 1);
+  let tokenIndexNo = TokenIndex.load(noIndexId);
+
+  const collateral = isNegRisk ? COLLATERAL_WCOL : COLLATERAL_USDCE;
+  if (!tokenIndexYes) {
+    const yesTokenId = getTokenId(conditionId, collateral, true);
+    tokenIndexYes = new TokenIndex(yesIndexId);
+    tokenIndexYes.conditionId = conditionId;
+    tokenIndexYes.tokenIndex = 0;
+    tokenIndexYes.tokenId = yesTokenId;
+    tokenIndexYes.twapIndex = BigInt.zero();
+    tokenIndexYes.save();
+  }
+  if (!tokenIndexNo) {
+    const noTokenId = getTokenId(conditionId, collateral, false);
+    tokenIndexNo = new TokenIndex(noIndexId);
+    tokenIndexNo.conditionId = conditionId;
+    tokenIndexNo.tokenIndex = 1;
+    tokenIndexNo.tokenId = noTokenId;
+    tokenIndexNo.twapIndex = BigInt.zero();
+    tokenIndexNo.save();
+  }
+  return [tokenIndexYes, tokenIndexNo];
+}
+
+function getConditionId(
+  contractAddress: Address,
+  tokenId: BigInt
+): Bytes | null {
+  const contract = CTFExchange.bind(contractAddress); //Should work for NegRisk and non-NegRisk
+  const conditionResult = contract.try_getConditionId(tokenId);
+  let conditionId: Bytes | null = null;
+  if (!conditionResult.reverted) conditionId = conditionResult.value;
+  return conditionId;
+}
+
+function processOrderFilled(
+  eventAddress: Address,
+  timestamp: BigInt,
+  makerAssetId: BigInt,
+  takerAssetId: BigInt,
+  makerAmountFilled: BigInt,
+  takerAmountFilled: BigInt,
+  isNegRisk: boolean
+): void {
   let tokenId: BigInt;
   let collateralAmount: BigInt;
   let tokenAmount: BigInt;
 
   if (makerAssetId.equals(COLLATERAL_ASSET_ID)) {
     tokenId = takerAssetId;
-    collateralAmount = event.params.makerAmountFilled;
-    tokenAmount = event.params.takerAmountFilled;
+    collateralAmount = makerAmountFilled;
+    tokenAmount = takerAmountFilled;
   } else if (takerAssetId.equals(COLLATERAL_ASSET_ID)) {
     tokenId = makerAssetId;
-    collateralAmount = event.params.takerAmountFilled;
-    tokenAmount = event.params.makerAmountFilled;
+    collateralAmount = takerAmountFilled;
+    tokenAmount = makerAmountFilled;
   } else {
     return;
   }
@@ -65,53 +125,51 @@ export function handleOrderFilled(event: OrderFilled): void {
     return;
   }
 
-  const contract = CTFExchange.bind(event.address);
-  const conditionResult = contract.try_getConditionId(tokenId);
-  if (conditionResult.reverted) {
+  const conditionId = getConditionId(eventAddress, tokenId);
+  if (conditionId === null) {
     return;
   }
 
-  const conditionId = conditionResult.value;
-  let condition = Condition.load(conditionId);
-  if (!condition) {
-    const complementResult = contract.try_getComplement(tokenId);
-    if (complementResult.reverted) {
-      return;
-    }
-    condition = new Condition(conditionId);
-    condition.token0Id = tokenId;
-    condition.token1Id = complementResult.value;
-    condition.save();
+  const indexes = ensureTokenIndexes(conditionId, isNegRisk);
+  const yesIndex = indexes[0];
+  const noIndex = indexes[1];
 
-    const token0Index = new TokenIndex(tokenIndexId(conditionId, tokenId));
-    token0Index.condition = conditionId;
-    token0Index.tokenId = tokenId;
-    token0Index.lastPrice = BigInt.zero();
-    token0Index.save();
-
-    const token1Index = new TokenIndex(
-      tokenIndexId(conditionId, complementResult.value)
-    );
-    token1Index.condition = conditionId;
-    token1Index.tokenId = complementResult.value;
-    token1Index.lastPrice = BigInt.zero();
-    token1Index.save();
-  }
-
-  const indexId = tokenIndexId(conditionId, tokenId);
-  let tokenIndex = TokenIndex.load(indexId);
-  if (!tokenIndex) {
-    tokenIndex = new TokenIndex(indexId);
-    tokenIndex.condition = conditionId;
-    tokenIndex.tokenId = tokenId;
-    tokenIndex.lastPrice = BigInt.zero();
-  }
-
-  if (tokenIndex.resolvedAt !== null) {
+  let tokenIndex: TokenIndex | null = null;
+  if (tokenId.equals(yesIndex.tokenId)) {
+    tokenIndex = yesIndex;
+  } else if (tokenId.equals(noIndex.tokenId)) {
+    tokenIndex = noIndex;
+  } else {
     return;
   }
+
+  //Don't update the index if it has been resolved
+  if (tokenIndex.resolvedAt !== null) return;
 
   const price6 = collateralAmount.times(PRICE_SCALE).div(tokenAmount);
-  updateIndexWithPrice(tokenIndex, price6, event.block.timestamp);
-  tokenIndex.save();
+  updateIndexWithPrice(tokenIndex, price6, timestamp);
+}
+
+export function handleOrderFilled(event: OrderFilled): void {
+  processOrderFilled(
+    event.address,
+    event.block.timestamp,
+    event.params.makerAssetId,
+    event.params.takerAssetId,
+    event.params.makerAmountFilled,
+    event.params.takerAmountFilled,
+    false
+  );
+}
+
+export function handleNegRiskOrderFilled(event: NegRiskOrderFilled): void {
+  processOrderFilled(
+    event.address,
+    event.block.timestamp,
+    event.params.makerAssetId,
+    event.params.takerAssetId,
+    event.params.makerAmountFilled,
+    event.params.takerAmountFilled,
+    true
+  );
 }

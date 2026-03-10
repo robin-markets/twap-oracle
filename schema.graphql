@@ -1,25 +1,23 @@
-type Condition @entity(immutable: true) {
-  id: Bytes! # conditionId
-  token0Id: BigInt!
-  token1Id: BigInt!
-  tokenIndices: [TokenIndex!]! @derivedFrom(field: "condition")
-}
-
 type TokenIndex @entity(immutable: false) {
-  id: String!
-  condition: Condition!
+  id: Bytes! # conditionId-tokenIndex
+  conditionId: Bytes!
+  tokenIndex: Int! # 0 for yes, 1 for no
   tokenId: BigInt!
-  twapIndex: BigInt # sum(price(1e6) * seconds)
+
+  #Index fields
+  twapIndex: BigInt! # sum(price(1e6) * seconds)
   startedAt: BigInt # timestamp
   lastUpdatedAt: BigInt # timestamp
-  lastPrice: BigInt! # 6 decimals
+  lastPrice: BigInt # 6 decimals
+  #Resolved fields
   resolvedAt: BigInt
   resolvedPrice: BigInt # 6 decimals
+  #Robin index fields
   robinLastUpdatedAt: BigInt
   robinTwapIndexYes: BigInt
   robinInitializedAt: BigInt
   twapIndexAtRobinInitializedAt: BigInt
-  robinIsYes: Boolean
+  #Robin resolved fields
   robinResolvedAt: BigInt
   robinResolvedPrice: BigInt
 }

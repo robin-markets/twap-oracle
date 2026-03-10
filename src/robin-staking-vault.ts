@@ -4,49 +4,36 @@ import {
   MarketFinalized,
   TwapUpdated,
 } from "../generated/RobinStakingVault/RobinStakingVault";
-import { Condition, TokenIndex } from "../generated/schema";
-
-function tokenIndexId(conditionId: Bytes, tokenId: BigInt): string {
-  return conditionId.toHex().concat(tokenId.toString());
-}
+import { TokenIndex } from "../generated/schema";
+import { PRICE_SCALE, tokenIndexId } from "./utils";
 
 function getOrCreateTokenIndex(
   conditionId: Bytes,
   tokenId: BigInt,
-  timestamp: BigInt
+  index: i32
 ): TokenIndex {
-  const indexId = tokenIndexId(conditionId, tokenId);
+  const indexId = tokenIndexId(conditionId, index);
   let tokenIndex = TokenIndex.load(indexId);
   if (!tokenIndex) {
     tokenIndex = new TokenIndex(indexId);
-    tokenIndex.condition = conditionId;
+    tokenIndex.conditionId = conditionId;
+    tokenIndex.tokenIndex = index;
     tokenIndex.tokenId = tokenId;
-    tokenIndex.lastPrice = BigInt.zero();
+    tokenIndex.twapIndex = BigInt.zero();
   }
   return tokenIndex;
 }
 
 export function handleTwapUpdated(event: TwapUpdated): void {
   const conditionId = event.params.conditionId;
-  const condition = Condition.load(conditionId);
-  if (!condition) {
-    return;
-  }
-
-  const token0Index = getOrCreateTokenIndex(
-    conditionId,
-    condition.token0Id,
-    event.block.timestamp
-  );
+  const token0Index = TokenIndex.load(tokenIndexId(conditionId, 0));
+  if (!token0Index) return;
   token0Index.robinLastUpdatedAt = event.params.timestamp;
   token0Index.robinTwapIndexYes = event.params.twapAccumulatorYes;
   token0Index.save();
 
-  const token1Index = getOrCreateTokenIndex(
-    conditionId,
-    condition.token1Id,
-    event.block.timestamp
-  );
+  const token1Index = TokenIndex.load(tokenIndexId(conditionId, 1));
+  if (!token1Index) return;
   token1Index.robinLastUpdatedAt = event.params.timestamp;
   token1Index.robinTwapIndexYes = event.params.twapAccumulatorYes;
   token1Index.save();
@@ -54,83 +41,37 @@ export function handleTwapUpdated(event: TwapUpdated): void {
 
 export function handleMarketInitialized(event: MarketInitialized): void {
   const conditionId = event.params.conditionId;
-  let condition = Condition.load(conditionId);
-  if (!condition) {
-    condition = new Condition(conditionId);
-    condition.token0Id = event.params.yesPositionId;
-    condition.token1Id = event.params.noPositionId;
-    condition.save();
-  }
-
   const timestamp = event.block.timestamp;
 
   const yesTokenId = event.params.yesPositionId;
   const noTokenId = event.params.noPositionId;
 
-  const token0Index = getOrCreateTokenIndex(
-    conditionId,
-    condition.token0Id,
-    timestamp
-  );
+  const token0Index = getOrCreateTokenIndex(conditionId, yesTokenId, 0);
   token0Index.robinInitializedAt = timestamp;
   token0Index.twapIndexAtRobinInitializedAt = token0Index.twapIndex;
-  if (condition.token0Id.equals(yesTokenId)) {
-    token0Index.robinIsYes = true;
-  } else if (condition.token0Id.equals(noTokenId)) {
-    token0Index.robinIsYes = false;
-  }
   token0Index.save();
 
-  const token1Index = getOrCreateTokenIndex(
-    conditionId,
-    condition.token1Id,
-    timestamp
-  );
+  const token1Index = getOrCreateTokenIndex(conditionId, noTokenId, 1);
   token1Index.robinInitializedAt = timestamp;
   token1Index.twapIndexAtRobinInitializedAt = token1Index.twapIndex;
-  if (condition.token1Id.equals(yesTokenId)) {
-    token1Index.robinIsYes = true;
-  } else if (condition.token1Id.equals(noTokenId)) {
-    token1Index.robinIsYes = false;
-  }
   token1Index.save();
 }
 
 export function handleMarketFinalized(event: MarketFinalized): void {
   const conditionId = event.params.conditionId;
-  const condition = Condition.load(conditionId);
-  if (!condition) {
-    return;
-  }
-
   const marketEndedAt = event.params.marketEndedAt;
   const marketEndYesPrice = event.params.marketEndYesPrice;
-  const priceScale = BigInt.fromI32(1000000);
-  const marketEndNoPrice = priceScale.minus(marketEndYesPrice);
+  const marketEndNoPrice = PRICE_SCALE.minus(marketEndYesPrice);
 
-  const token0Index = getOrCreateTokenIndex(
-    conditionId,
-    condition.token0Id,
-    event.block.timestamp
-  );
+  const token0Index = TokenIndex.load(tokenIndexId(conditionId, 0));
+  if (!token0Index) return;
   token0Index.robinResolvedAt = marketEndedAt;
-  if (token0Index.robinIsYes === false) {
-    token0Index.robinResolvedPrice = marketEndNoPrice;
-  } else {
-    token0Index.robinResolvedPrice = marketEndYesPrice;
-  }
+  token0Index.robinResolvedPrice = marketEndYesPrice;
   token0Index.save();
 
-  const token1Index = getOrCreateTokenIndex(
-    conditionId,
-    condition.token1Id,
-    event.block.timestamp
-  );
+  const token1Index = TokenIndex.load(tokenIndexId(conditionId, 1));
+  if (!token1Index) return;
   token1Index.robinResolvedAt = marketEndedAt;
-  if (token1Index.robinIsYes === false) {
-    token1Index.robinResolvedPrice = marketEndNoPrice;
-  } else {
-    token1Index.robinResolvedPrice = marketEndYesPrice;
-  }
+  token1Index.robinResolvedPrice = marketEndNoPrice;
   token1Index.save();
 }

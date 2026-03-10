@@ -1,41 +1,29 @@
-import { BigInt, Bytes } from "@graphprotocol/graph-ts";
+import { BigInt } from "@graphprotocol/graph-ts";
 import { ConditionResolution as ConditionResolutionEvent } from "../generated/ConditionalTokens/ConditionalTokens";
-import { Condition, TokenIndex } from "../generated/schema";
-
-const PRICE_SCALE = BigInt.fromI32(1000000);
-
-function tokenIndexId(conditionId: Bytes, tokenId: BigInt): string {
-  return conditionId.toHex().concat(tokenId.toString());
-}
+import { TokenIndex } from "../generated/schema";
+import { PRICE_SCALE, tokenIndexId } from "./utils";
 
 function applyResolvedPrice(
   tokenIndex: TokenIndex,
   resolvedPrice: BigInt,
   timestamp: BigInt
 ): void {
-  if (tokenIndex.lastUpdatedAt === null) {
-    tokenIndex.twapIndex = BigInt.zero();
-    tokenIndex.startedAt = timestamp;
-    tokenIndex.lastUpdatedAt = timestamp;
-    tokenIndex.resolvedAt = timestamp;
-    tokenIndex.resolvedPrice = resolvedPrice;
+  tokenIndex.resolvedAt = timestamp;
+  tokenIndex.resolvedPrice = resolvedPrice;
+
+  if (tokenIndex.lastUpdatedAt === null || tokenIndex.lastPrice === null) {
+    tokenIndex.save();
     return;
   }
 
-  const lastUpdatedAt = tokenIndex.lastUpdatedAt as BigInt;
+  const lastUpdatedAt = tokenIndex.lastUpdatedAt as BigInt; //already checked null above
   const timeElapsed = timestamp.minus(lastUpdatedAt);
-  if (timeElapsed.gt(BigInt.zero())) {
-    let currentTwapIndex = tokenIndex.twapIndex;
-    if (currentTwapIndex === null) {
-      currentTwapIndex = BigInt.zero();
-    }
-    tokenIndex.twapIndex = currentTwapIndex.plus(
-      tokenIndex.lastPrice.times(timeElapsed)
-    );
-  }
+  const lastPrice = tokenIndex.lastPrice as BigInt; //already checked null above
+  tokenIndex.twapIndex = tokenIndex.twapIndex.plus(
+    lastPrice.times(timeElapsed)
+  );
   tokenIndex.lastUpdatedAt = timestamp;
-  tokenIndex.resolvedAt = timestamp;
-  tokenIndex.resolvedPrice = resolvedPrice;
+  tokenIndex.save();
 }
 
 export function handleConditionResolution(
@@ -52,25 +40,18 @@ export function handleConditionResolution(
     return;
   }
 
-  const condition = Condition.load(conditionId);
-  if (!condition) {
-    return;
-  }
-
   const resolvedToken0Price = numerators[0].times(PRICE_SCALE).div(sum);
   const resolvedToken1Price = numerators[1].times(PRICE_SCALE).div(sum);
 
-  const token0IndexId = tokenIndexId(conditionId, condition.token0Id);
+  const token0IndexId = tokenIndexId(conditionId, 0);
   let token0Index = TokenIndex.load(token0IndexId);
   if (token0Index) {
     applyResolvedPrice(token0Index, resolvedToken0Price, event.block.timestamp);
-    token0Index.save();
   }
 
-  const token1IndexId = tokenIndexId(conditionId, condition.token1Id);
+  const token1IndexId = tokenIndexId(conditionId, 1);
   let token1Index = TokenIndex.load(token1IndexId);
   if (token1Index) {
     applyResolvedPrice(token1Index, resolvedToken1Price, event.block.timestamp);
-    token1Index.save();
   }
 }

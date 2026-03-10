@@ -16,11 +16,12 @@ dataSources:
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - Condition
         - TokenIndex
       abis:
         - name: CTFExchange
           file: ./abis/CTFExchange.json
+        - name: ConditionalTokens
+          file: ./abis/ConditionalTokens.json
       eventHandlers:
         - event: OrderFilled(indexed bytes32,indexed address,indexed
             address,uint256,uint256,uint256,uint256,uint256)
@@ -38,7 +39,6 @@ dataSources:
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - Condition
         - TokenIndex
       abis:
         - name: ConditionalTokens
@@ -48,6 +48,29 @@ dataSources:
             bytes32,uint256,uint256[])
           handler: handleConditionResolution
       file: ./src/conditional-tokens.ts
+  - kind: ethereum
+    name: NegRiskCTFExchange
+    network: matic
+    source:
+      address: "0xC5d563A36AE78145C45a50134d48A1215220f80a"
+      abi: NegRiskCTFExchange
+      startBlock: 82604020
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - TokenIndex
+      abis:
+        - name: NegRiskCTFExchange
+          file: ./abis/NegRiskCTFExchange.json
+        - name: ConditionalTokens
+          file: ./abis/ConditionalTokens.json
+      eventHandlers:
+        - event: OrderFilled(indexed bytes32,indexed address,indexed
+            address,uint256,uint256,uint256,uint256,uint256)
+          handler: handleNegRiskOrderFilled
+      file: ./src/ctf-exchange.ts
   - kind: ethereum
     name: RobinStakingVault
     network: matic
@@ -60,7 +83,6 @@ dataSources:
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - Condition
         - TokenIndex
       abis:
         - name: RobinStakingVault
