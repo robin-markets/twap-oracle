@@ -137,14 +137,16 @@ export async function computeAlternativeTwapDataBatch(
     conditionIds.map((id) => id as Hex),
   );
 
-  // 2. Early return for markets that don't need TWAP signature
+  // 2. Categorize markets
   const results = new Map<string, TwapData>();
   const failed = new Map<string, string>();
-  const needsPolymarket: string[] = [];
+  const needsFinalizationCheck: string[] = [];
+  const needsTwapComputation: string[] = [];
 
   for (const id of conditionIds) {
     const rpcData = rpcBatch.get(id as Hex)!;
-    if (!rpcData.twapSignatureRequired) {
+    if (rpcData.state.marketEndedAt > 0n) {
+      // Already finalized in contract — no signature needed
       results.set(id, {
         required: false,
         conditionId: id as Hex,
@@ -154,20 +156,45 @@ export async function computeAlternativeTwapDataBatch(
         marketEndedAt: 0n,
         marketEndYesPrice: 0n,
       });
+    } else if (rpcData.twapSignatureRequired) {
+      needsTwapComputation.push(id);
     } else {
-      needsPolymarket.push(id);
+      // TWAP signature not required but market not yet finalized — check Polymarket
+      // in case the market resolved and needs finalization data.
+      // Use the full computation flow so twapPriceYes is accurate even if
+      // twapRequired gets toggled on between signing and contract execution.
+      needsFinalizationCheck.push(id);
     }
   }
 
-  if (needsPolymarket.length === 0) return { results, failed };
+  if (needsFinalizationCheck.length === 0) return { results, failed };
 
-  // 3. Batch Polymarket
-  const polymarketInfoMap =
-    await polymarket.getMarketInfoBatch(needsPolymarket);
+  // 3. Batch Polymarket for all markets that need data
+  const polymarketInfoMap = await polymarket.getMarketInfoBatch(
+    needsFinalizationCheck,
+  );
 
-  // 4. Compute for each remaining market (getTwapData calls run in chunks)
-  for (let i = 0; i < needsPolymarket.length; i += CLOB_CONCURRENCY) {
-    const chunk = needsPolymarket.slice(i, i + CLOB_CONCURRENCY);
+  // 4. Only compute if market resolved on Polymarket (needs finalization)
+  for (const id of needsFinalizationCheck) {
+    const marketInfo = polymarketInfoMap.get(id);
+    if (marketInfo?.resolved) {
+      needsTwapComputation.push(id);
+    } else {
+      results.set(id, {
+        required: false,
+        conditionId: id as Hex,
+        startTimestamp: 0n,
+        endTimestamp: 0n,
+        twapPriceYes: 0n,
+        marketEndedAt: 0n,
+        marketEndYesPrice: 0n,
+      });
+    }
+  }
+
+  // 5. Compute TWAP for remaining markets (getTwapData calls run in chunks)
+  for (let i = 0; i < needsTwapComputation.length; i += CLOB_CONCURRENCY) {
+    const chunk = needsTwapComputation.slice(i, i + CLOB_CONCURRENCY);
     const settled = await Promise.allSettled(
       chunk.map(async (id) => {
         const rpcData = rpcBatch.get(id as Hex)!;
