@@ -52,12 +52,12 @@ export class PolymarketDataSource {
    * Returns a map from conditionId to market info (missing markets are omitted).
    */
   async getMarketInfoBatch(
-    conditionIds: string[]
+    conditionIds: string[],
   ): Promise<Map<string, PolymarketMarketInfo>> {
     if (conditionIds.length === 0) return new Map();
 
     const url = `${GAMMA_API_BASE}/markets?condition_ids=${conditionIds.join(
-      ","
+      ",",
     )}`;
     const response = await fetch(url);
     if (!response.ok) {
@@ -86,7 +86,7 @@ export class PolymarketDataSource {
         resolvedYesPrice = yesPrice;
         if (market.closedTime) {
           resolvedTimestamp = Math.floor(
-            new Date(market.closedTime).getTime() / 1000
+            new Date(market.closedTime).getTime() / 1000,
           );
         }
       }
@@ -117,13 +117,12 @@ export class PolymarketDataSource {
   async getTwapData(
     yesTokenId: string,
     startTime: number,
-    //TODO is this clamped to finalization timestamp?
-    endTime: number
+    endTime: number,
   ): Promise<{ twapPriceYes: bigint }> {
     const durationMinutes = (endTime - startTime) / 60;
     const fidelity = Math.max(
       1,
-      Math.ceil(durationMinutes / MAX_PRICE_HISTORY_POINTS)
+      Math.ceil(durationMinutes / MAX_PRICE_HISTORY_POINTS),
     );
 
     const params = new URLSearchParams({
