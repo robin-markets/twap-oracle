@@ -4,6 +4,7 @@ import type { RpcMarketState } from "../datasources/rpc.js";
 import type { PolymarketDataSource } from "../datasources/polymarket.js";
 import {
   PRICE_SCALE,
+  TwapError,
   type PolymarketMarketInfo,
   type TwapData,
 } from "../types.js";
@@ -54,6 +55,12 @@ async function computeAlternativeTwapData(
 
   const timeDelta = clampedEnd - startTimestamp;
   if (timeDelta <= 0n) {
+    if (marketInfo.yesPrice === undefined) {
+      throw new TwapError(
+        `Cannot compute TWAP for market ${conditionId}: no time range and no valid spot price`,
+        500,
+      );
+    }
     twapPriceYes = BigInt(
       Math.round(marketInfo.yesPrice * Number(PRICE_SCALE)),
     );
@@ -68,6 +75,12 @@ async function computeAlternativeTwapData(
       twapPriceYes = twapResult.twapPriceYes;
     } catch {
       // CLOB price history failed — use spot price
+      if (marketInfo.yesPrice === undefined) {
+        throw new TwapError(
+          `Cannot compute TWAP for market ${conditionId}: CLOB history failed and no valid spot price`,
+          500,
+        );
+      }
       twapPriceYes = BigInt(
         Math.round(marketInfo.yesPrice * Number(PRICE_SCALE)),
       );
@@ -84,17 +97,21 @@ async function computeAlternativeTwapData(
   let marketEndYesPrice = state.marketEndYesPrice;
 
   if (marketEndedAt === 0n && marketInfo.resolved) {
-    //TODO we probably should not add marketEndedAt if resolvedYesPrice is not available
-    if (marketInfo.resolvedTimestamp) {
-      marketEndedAt = BigInt(marketInfo.resolvedTimestamp);
-    }
-    if (marketInfo.resolvedYesPrice !== undefined) {
-      marketEndYesPrice = BigInt(
-        Math.round(marketInfo.resolvedYesPrice * Number(PRICE_SCALE)),
+    if (
+      marketInfo.resolvedTimestamp === undefined ||
+      marketInfo.resolvedYesPrice === undefined
+    ) {
+      throw new Error(
+        `Market ${conditionId} is resolved on Polymarket but missing ` +
+          `${marketInfo.resolvedTimestamp === undefined ? "timestamp" : "price"} data`,
       );
-      if (marketEndYesPrice > PRICE_SCALE) marketEndYesPrice = PRICE_SCALE;
-      if (marketEndYesPrice < 0n) marketEndYesPrice = 0n;
     }
+    marketEndedAt = BigInt(marketInfo.resolvedTimestamp);
+    marketEndYesPrice = BigInt(
+      Math.round(marketInfo.resolvedYesPrice * Number(PRICE_SCALE)),
+    );
+    if (marketEndYesPrice > PRICE_SCALE) marketEndYesPrice = PRICE_SCALE;
+    if (marketEndYesPrice < 0n) marketEndYesPrice = 0n;
   }
 
   return {

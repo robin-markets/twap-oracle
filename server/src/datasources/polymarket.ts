@@ -76,8 +76,19 @@ export class PolymarketDataSource {
       if (yesIdx === -1) continue;
 
       const noIdx = yesIdx === 0 ? 1 : 0;
-      const yesPrice = parseFloat(prices[yesIdx]) || 0;
-      const noPrice = parseFloat(prices[noIdx]) || 0;
+      const rawYes = parseFloat(prices[yesIdx]);
+      const rawNo = parseFloat(prices[noIdx]);
+
+      // Validate prices: must parse and YES + NO ≈ 1 (within 15%)
+      let yesPrice: number | undefined;
+      let noPrice: number | undefined;
+      if (!isNaN(rawYes) && !isNaN(rawNo)) {
+        const sum = rawYes + rawNo;
+        if (sum >= 0.85 && sum <= 1.15) {
+          yesPrice = rawYes;
+          noPrice = rawNo;
+        }
+      }
 
       const resolved = market.closed === true;
       let resolvedYesPrice: number | undefined;

@@ -205,6 +205,7 @@ async function handleSubgraphData(
     try {
       const infoMap = await polymarket.getMarketInfoBatch(needsFallbackIds);
       for (const [id, info] of infoMap) {
+        if (info.yesPrice === undefined) continue;
         fallbackMap.set(
           id,
           BigInt(Math.round(info.yesPrice * Number(PRICE_SCALE))),

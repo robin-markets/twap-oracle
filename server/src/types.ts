@@ -50,8 +50,8 @@ export interface SubgraphMarket {
 // ---- Polymarket types ----
 
 export interface PolymarketMarketInfo {
-  yesPrice: number;
-  noPrice: number;
+  yesPrice?: number;
+  noPrice?: number;
   resolved: boolean;
   resolvedYesPrice?: number;
   resolvedTimestamp?: number;
