@@ -1,6 +1,7 @@
 import type { PolymarketDataSource } from "../datasources/polymarket.js";
 import {
   PRICE_SCALE,
+  type PolymarketMarketInfo,
   type TwapData,
 } from "../types.js";
 import { sendNotification } from "./notification.js";
@@ -26,22 +27,31 @@ export interface VerificationInput {
 export async function verifyTwapDataBatch(
   items: VerificationInput[],
   polymarket: PolymarketDataSource,
-  config: VerificationConfig
+  config: VerificationConfig,
+  preloadedMarketInfo?: Map<string, PolymarketMarketInfo>
 ): Promise<void> {
   const toVerify = items.filter((item) => item.twapData.required);
   if (toVerify.length === 0) return;
 
-  // Batch-fetch market info for all markets
-  const conditionIds = toVerify.map((item) => item.twapData.conditionId);
-  let marketInfoMap;
-  try {
-    marketInfoMap = await polymarket.getMarketInfoBatch(conditionIds);
-  } catch (err) {
-    await sendNotification(
-      `[WARN] Polymarket verification unavailable: batch fetch failed. ` +
-        `Error: ${err instanceof Error ? err.message : String(err)}`
-    ).catch(() => {});
-    return;
+  // Start with preloaded data, then fetch any missing markets
+  const marketInfoMap = new Map<string, PolymarketMarketInfo>(preloadedMarketInfo);
+  const missingIds = toVerify
+    .map((item) => item.twapData.conditionId)
+    .filter((id) => !marketInfoMap.has(id));
+
+  if (missingIds.length > 0) {
+    try {
+      const fetched = await polymarket.getMarketInfoBatch(missingIds);
+      for (const [id, info] of fetched) {
+        marketInfoMap.set(id, info);
+      }
+    } catch (err) {
+      await sendNotification(
+        `[WARN] Polymarket verification unavailable: batch fetch failed. ` +
+          `Error: ${err instanceof Error ? err.message : String(err)}`
+      ).catch(() => {});
+      // Continue with whatever preloaded data we have
+    }
   }
 
   for (const item of toVerify) {

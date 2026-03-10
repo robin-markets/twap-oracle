@@ -19,7 +19,7 @@ async function computeAlternativeTwapData(
   conditionId: string,
   endTimestamp: bigint,
   rpc: RpcDataSource,
-  polymarket: PolymarketDataSource
+  polymarket: PolymarketDataSource,
 ): Promise<AlternativeTwapResult> {
   const hex = conditionId as Hex;
 
@@ -94,7 +94,7 @@ async function computeAlternativeTwapData(
   if (timeDelta <= 0n) {
     // No time range — use spot price
     twapPriceYes = BigInt(
-      Math.round(marketInfo.yesPrice * Number(PRICE_SCALE))
+      Math.round(marketInfo.yesPrice * Number(PRICE_SCALE)),
     );
     usedPolymarketSpot = true;
   } else {
@@ -102,14 +102,14 @@ async function computeAlternativeTwapData(
       const twapResult = await polymarket.getTwapData(
         marketInfo.yesTokenId,
         Number(startTimestamp),
-        Number(clampedEnd)
+        Number(clampedEnd),
       );
       twapPriceYes = twapResult.twapPriceYes;
     } catch {
       // CLOB price history failed — use spot price
       //TODO notify?
       twapPriceYes = BigInt(
-        Math.round(marketInfo.yesPrice * Number(PRICE_SCALE))
+        Math.round(marketInfo.yesPrice * Number(PRICE_SCALE)),
       );
       usedPolymarketSpot = true;
     }
@@ -133,7 +133,7 @@ async function computeAlternativeTwapData(
     }
     if (marketInfo.resolvedYesPrice !== undefined) {
       marketEndYesPrice = BigInt(
-        Math.round(marketInfo.resolvedYesPrice * Number(PRICE_SCALE))
+        Math.round(marketInfo.resolvedYesPrice * Number(PRICE_SCALE)),
       );
       if (marketEndYesPrice > PRICE_SCALE) marketEndYesPrice = PRICE_SCALE;
       if (marketEndYesPrice < 0n) marketEndYesPrice = 0n;
@@ -163,7 +163,7 @@ export async function computeAlternativeTwapDataBatch(
   conditionIds: string[],
   endTimestamp: bigint,
   rpc: RpcDataSource,
-  polymarket: PolymarketDataSource
+  polymarket: PolymarketDataSource,
 ): Promise<Map<string, AlternativeTwapResult>> {
   const results = new Map<string, AlternativeTwapResult>();
   //TODO is Promise.all here the right choice if it really is up to 50 markets?
@@ -173,10 +173,10 @@ export async function computeAlternativeTwapDataBatch(
         id,
         endTimestamp,
         rpc,
-        polymarket
+        polymarket,
       );
       return [id, result] as const;
-    })
+    }),
   );
   for (const [id, result] of entries) {
     results.set(id, result);
