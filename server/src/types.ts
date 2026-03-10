@@ -102,9 +102,3 @@ export class DataSourceError extends TwapError {
     super(message, 502, details);
   }
 }
-
-export class ResolutionMismatchError extends TwapError {
-  constructor(conditionId: string, details: string) {
-    super(`Resolution data mismatch for market ${conditionId}`, 409, details);
-  }
-}

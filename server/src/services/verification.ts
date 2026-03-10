@@ -1,7 +1,6 @@
 import type { PolymarketDataSource } from "../datasources/polymarket.js";
 import {
   PRICE_SCALE,
-  ResolutionMismatchError,
   type TwapData,
 } from "../types.js";
 import { sendNotification } from "./notification.js";
@@ -18,12 +17,11 @@ export interface VerificationInput {
 
 /**
  * Verify subgraph-computed TwapData against Polymarket.
+ * Mutates twapData in-place to correct mismatches (trusts API over subgraph).
  *
  * For each required market:
- *   1. Resolution check (HARD FAIL on any disagreement)
- *   2. TWAP comparison (soft warning if divergence > threshold)
- *
- * Blocks the response because resolution mismatches fail the request.
+ *   1. Resolution check — corrects twapData from API if mismatched, notifies
+ *   2. TWAP comparison — soft warning if divergence > threshold
  */
 export async function verifyTwapDataBatch(
   items: VerificationInput[],
@@ -56,29 +54,38 @@ export async function verifyTwapDataBatch(
       continue;
     }
 
-    // ---- Resolution check (HARD FAIL) ----
+    // ---- Resolution check (correct from API if mismatched) ----
     const subgraphResolved = item.twapData.marketEndedAt > 0n;
     const polyResolved = info.resolved;
 
-    //TODO don't make these fail, just use the Polymarket API price
     if (subgraphResolved && !polyResolved) {
-      const details =
-        `Subgraph shows marketEndedAt=${item.twapData.marketEndedAt} ` +
-        `but Polymarket shows market not resolved`;
       await sendNotification(
-        `[CRITICAL] Resolution mismatch: ${conditionId} - ${details}`
+        `[CRITICAL] Resolution mismatch for ${conditionId}: ` +
+          `subgraph shows marketEndedAt=${item.twapData.marketEndedAt} ` +
+          `but Polymarket shows not resolved. Clearing resolution data.`
       ).catch(() => {});
-      throw new ResolutionMismatchError(conditionId, details);
+      item.twapData.marketEndedAt = 0n;
+      item.twapData.marketEndYesPrice = 0n;
     }
 
     if (!subgraphResolved && polyResolved) {
-      const details =
-        `Polymarket shows market as resolved ` +
-        `but subgraph has no resolution data yet`;
-      await sendNotification(
-        `[CRITICAL] Resolution mismatch: ${conditionId} - ${details}`
-      ).catch(() => {});
-      throw new ResolutionMismatchError(conditionId, details);
+      if (info.resolvedTimestamp && info.resolvedYesPrice !== undefined) {
+        const polyPrice = BigInt(
+          Math.round(info.resolvedYesPrice * Number(PRICE_SCALE))
+        );
+        await sendNotification(
+          `[CRITICAL] Resolution mismatch for ${conditionId}: ` +
+            `Polymarket shows resolved but subgraph has no resolution data. ` +
+            `Using API resolution: endedAt=${info.resolvedTimestamp}, price=${polyPrice}.`
+        ).catch(() => {});
+        item.twapData.marketEndedAt = BigInt(info.resolvedTimestamp);
+        item.twapData.marketEndYesPrice = polyPrice;
+      } else {
+        await sendNotification(
+          `[WARN] Resolution mismatch for ${conditionId}: ` +
+            `Polymarket shows resolved but missing timestamp or price. Skipping correction.`
+        ).catch(() => {});
+      }
     }
 
     if (
@@ -90,13 +97,12 @@ export async function verifyTwapDataBatch(
         Math.round(info.resolvedYesPrice * Number(PRICE_SCALE))
       );
       if (polyPrice !== item.twapData.marketEndYesPrice) {
-        const details =
-          `Resolution price mismatch: subgraph=${item.twapData.marketEndYesPrice}, ` +
-          `polymarket=${polyPrice}`;
         await sendNotification(
-          `[CRITICAL] Resolution mismatch: ${conditionId} - ${details}`
+          `[CRITICAL] Resolution price mismatch for ${conditionId}: ` +
+            `subgraph=${item.twapData.marketEndYesPrice}, polymarket=${polyPrice}. ` +
+            `Using API price.`
         ).catch(() => {});
-        throw new ResolutionMismatchError(conditionId, details);
+        item.twapData.marketEndYesPrice = polyPrice;
       }
     }
 
