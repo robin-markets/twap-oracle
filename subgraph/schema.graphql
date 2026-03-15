@@ -1,23 +1,23 @@
 type TokenIndex @entity(immutable: false) {
-  id: String! # positionId
-  twapIndex: BigInt! # sum(price(1e6) * seconds)
-  startedAt: BigInt # timestamp
-  lastUpdatedAt: BigInt # timestamp
-  lastPrice: BigInt # 6 decimals
-  resolvedAt: BigInt # set at resolution to freeze TWAP
-  resolvedPrice: BigInt # 6 decimals
+    id: String! # positionId
+    twapIndex: BigInt! # sum(price(1e6) * seconds)
+    startedAt: BigInt # timestamp
+    lastUpdatedAt: BigInt # timestamp
+    lastPrice: BigInt # 6 decimals
+    resolvedAt: BigInt # set at resolution to freeze TWAP
+    resolvedPrice: BigInt # 6 decimals
 }
 
 type Market @entity(immutable: false) {
-  id: String! # conditionId hex
-  yesToken: TokenIndex!
-  noToken: TokenIndex!
-  robinInitializedAt: BigInt!
-  twapSnapshotYes: BigInt! # exchange twapIndex for YES at last contract update
-  twapSnapshotNo: BigInt! # exchange twapIndex for NO at last contract update
-  robinTwapIndexYes: BigInt
-  robinLastUpdatedAt: BigInt
-  robinResolvedAt: BigInt
-  robinResolvedYesPrice: BigInt
-  robinResolvedNoPrice: BigInt
+    id: String! # conditionId hex
+    yesToken: TokenIndex!
+    noToken: TokenIndex!
+    robinInitializedAt: BigInt!
+    twapSnapshotYes: BigInt! # exchange twapIndex for YES at last contract update
+    twapSnapshotNo: BigInt! # exchange twapIndex for NO at last contract update
+    robinTwapIndexYes: BigInt
+    robinLastUpdatedAt: BigInt
+    robinResolvedAt: BigInt
+    robinResolvedYesPrice: BigInt
+    robinResolvedNoPrice: BigInt
 }

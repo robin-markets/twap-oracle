@@ -1,94 +1,94 @@
 specVersion: 1.3.0
 indexerHints:
-  prune: auto
+    prune: auto
 schema:
-  file: ./schema.graphql
+    file: ./schema.graphql
 dataSources:
-  - kind: ethereum
-    name: CTFExchange
-    network: matic
-    source:
-      address: "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"
-      abi: CTFExchange
-      startBlock: 82604020
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - TokenIndex
-      abis:
-        - name: CTFExchange
-          file: ./abis/CTFExchange.json
-      eventHandlers:
-        - event: OrderFilled(indexed bytes32,indexed address,indexed
-            address,uint256,uint256,uint256,uint256,uint256)
-          handler: handleOrderFilled
-      file: ./src/ctf-exchange.ts
-  - kind: ethereum
-    name: ConditionalTokens
-    network: matic
-    source:
-      address: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
-      abi: ConditionalTokens
-      startBlock: 82604020
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - TokenIndex
-      abis:
-        - name: ConditionalTokens
-          file: ./abis/ConditionalTokens.json
-      eventHandlers:
-        - event: ConditionResolution(indexed bytes32,indexed address,indexed
-            bytes32,uint256,uint256[])
-          handler: handleConditionResolution
-      file: ./src/conditional-tokens.ts
-  - kind: ethereum
-    name: NegRiskCTFExchange
-    network: matic
-    source:
-      address: "0xC5d563A36AE78145C45a50134d48A1215220f80a"
-      abi: NegRiskCTFExchange
-      startBlock: 82604020
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - TokenIndex
-      abis:
-        - name: NegRiskCTFExchange
-          file: ./abis/NegRiskCTFExchange.json
-      eventHandlers:
-        - event: OrderFilled(indexed bytes32,indexed address,indexed
-            address,uint256,uint256,uint256,uint256,uint256)
-          handler: handleNegRiskOrderFilled
-      file: ./src/ctf-exchange.ts
-  - kind: ethereum
-    name: RobinTwapOracle
-    network: matic
-    source:
-      address: "0xAa489b4F076ce1459B48a730eFb981641A91B7c7"
-      abi: IRobinTwapOracle
-      startBlock: 82604020
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - Market
-        - TokenIndex
-      abis:
-        - name: IRobinTwapOracle
-          file: ./abis/IRobinTwapOracle.json
-      eventHandlers:
-        - event: MarketFinalized(indexed bytes32,uint256,uint256)
-          handler: handleMarketFinalized
-        - event: MarketInitialized(indexed bytes32,uint256,uint256,bool)
-          handler: handleMarketInitialized
-        - event: TwapUpdated(indexed bytes32,uint256,uint256)
-          handler: handleTwapUpdated
-      file: ./src/robin-twap-oracle.ts
+    - kind: ethereum
+      name: CTFExchange
+      network: matic
+      source:
+          address: '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E'
+          abi: CTFExchange
+          startBlock: 82604020
+      mapping:
+          kind: ethereum/events
+          apiVersion: 0.0.9
+          language: wasm/assemblyscript
+          entities:
+              - TokenIndex
+          abis:
+              - name: CTFExchange
+                file: ./abis/CTFExchange.json
+          eventHandlers:
+              - event: OrderFilled(indexed bytes32,indexed address,indexed
+                    address,uint256,uint256,uint256,uint256,uint256)
+                handler: handleOrderFilled
+          file: ./src/ctf-exchange.ts
+    - kind: ethereum
+      name: ConditionalTokens
+      network: matic
+      source:
+          address: '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045'
+          abi: ConditionalTokens
+          startBlock: 82604020
+      mapping:
+          kind: ethereum/events
+          apiVersion: 0.0.9
+          language: wasm/assemblyscript
+          entities:
+              - TokenIndex
+          abis:
+              - name: ConditionalTokens
+                file: ./abis/ConditionalTokens.json
+          eventHandlers:
+              - event: ConditionResolution(indexed bytes32,indexed address,indexed
+                    bytes32,uint256,uint256[])
+                handler: handleConditionResolution
+          file: ./src/conditional-tokens.ts
+    - kind: ethereum
+      name: NegRiskCTFExchange
+      network: matic
+      source:
+          address: '0xC5d563A36AE78145C45a50134d48A1215220f80a'
+          abi: NegRiskCTFExchange
+          startBlock: 82604020
+      mapping:
+          kind: ethereum/events
+          apiVersion: 0.0.9
+          language: wasm/assemblyscript
+          entities:
+              - TokenIndex
+          abis:
+              - name: NegRiskCTFExchange
+                file: ./abis/NegRiskCTFExchange.json
+          eventHandlers:
+              - event: OrderFilled(indexed bytes32,indexed address,indexed
+                    address,uint256,uint256,uint256,uint256,uint256)
+                handler: handleNegRiskOrderFilled
+          file: ./src/ctf-exchange.ts
+    - kind: ethereum
+      name: RobinTwapOracle
+      network: matic
+      source:
+          address: '0xAa489b4F076ce1459B48a730eFb981641A91B7c7'
+          abi: IRobinTwapOracle
+          startBlock: 82604020
+      mapping:
+          kind: ethereum/events
+          apiVersion: 0.0.9
+          language: wasm/assemblyscript
+          entities:
+              - Market
+              - TokenIndex
+          abis:
+              - name: IRobinTwapOracle
+                file: ./abis/IRobinTwapOracle.json
+          eventHandlers:
+              - event: MarketFinalized(indexed bytes32,uint256,uint256)
+                handler: handleMarketFinalized
+              - event: MarketInitialized(indexed bytes32,uint256,uint256,bool)
+                handler: handleMarketInitialized
+              - event: TwapUpdated(indexed bytes32,uint256,uint256)
+                handler: handleTwapUpdated
+          file: ./src/robin-twap-oracle.ts

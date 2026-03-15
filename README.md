@@ -86,14 +86,14 @@ The happy path. The subgraph has indexed all requested markets.
 1. **Fetch subgraph data** — GraphQL query returns market entities with token indexes, snapshots, and resolution state. The query also fetches `_meta.block.timestamp` to determine how far behind the subgraph is. If the lag exceeds `TWAP_GRACE_PERIOD_SECONDS`, the subgraph is considered stale and the server falls back to Flow C. Otherwise, the subgraph's block timestamp is used as `endTimestamp` in the signed package, ensuring consistency between the indexed data and the time boundary.
 2. **Fallback prices** — For markets with no exchange trades, fetch the current YES price from the Polymarket Gamma API as a fallback.
 3. **Compute TWAP** (`twap-computation.ts`) — For each market:
-   - If Robin already finalized: return `required: false` (no signature needed).
-   - Clamp calculation end to resolution time if the subgraph has seen resolution.
-   - Extrapolate `twapIndex` from last trade to the clamped end.
-   - `twapPriceYes = (effectiveIndex - snapshot) / timeDelta`
-   - If the subgraph has resolution data but Robin hasn't finalized: include `marketEndedAt` and `marketEndYesPrice`.
+    - If Robin already finalized: return `required: false` (no signature needed).
+    - Clamp calculation end to resolution time if the subgraph has seen resolution.
+    - Extrapolate `twapIndex` from last trade to the clamped end.
+    - `twapPriceYes = (effectiveIndex - snapshot) / timeDelta`
+    - If the subgraph has resolution data but Robin hasn't finalized: include `marketEndedAt` and `marketEndYesPrice`.
 4. **Verify against Polymarket** (`verification.ts`) — Cross-check subgraph results:
-   - **Resolution check**: If subgraph and Polymarket disagree on whether a market is resolved, send a notification. If Polymarket shows resolved but subgraph doesn't, fill in resolution data from the API.
-   - **TWAP comparison**: Fetch CLOB price history for the same period and compare. If divergence exceeds the configured threshold, send a warning notification. This is a soft check — subgraph data is used regardless.
+    - **Resolution check**: If subgraph and Polymarket disagree on whether a market is resolved, send a notification. If Polymarket shows resolved but subgraph doesn't, fill in resolution data from the API.
+    - **TWAP comparison**: Fetch CLOB price history for the same period and compare. If divergence exceeds the configured threshold, send a warning notification. This is a soft check — subgraph data is used regardless.
 5. **Sign and return** — EIP-712 sign the batch and respond.
 
 ### Flow B — Subgraph available, some markets missing
@@ -110,14 +110,14 @@ Fallback path when the subgraph is down, returning errors, or lagging behind by 
 
 1. **Batch RPC** (`rpc.ts`) — `multicall` to the oracle contract fetches `getMarketState` and `isTwapSignatureRequired` for all markets in a single request.
 2. **Categorize markets** (`alternative-twap.ts`) — Markets are split into three groups:
-   - **Already finalized** in the contract (`marketEndedAt > 0`): return `required: false`.
-   - **TWAP signature required**: needs full CLOB-based TWAP computation.
-   - **TWAP not required, not yet finalized**: check Polymarket for resolution status. If resolved, compute a full TWAP package with finalization data (so the contract can finalize the market). If not resolved, return `required: false`.
+    - **Already finalized** in the contract (`marketEndedAt > 0`): return `required: false`.
+    - **TWAP signature required**: needs full CLOB-based TWAP computation.
+    - **TWAP not required, not yet finalized**: check Polymarket for resolution status. If resolved, compute a full TWAP package with finalization data (so the contract can finalize the market). If not resolved, return `required: false`.
 3. **Batch Polymarket** — Fetch market info (prices, resolution status) from the Gamma API for all markets that need data.
 4. **Per-market TWAP** — For each market needing computation:
-   - Clamp the calculation end to Polymarket's resolution timestamp if resolved.
-   - Fetch CLOB price history (`/prices-history`) and compute a time-weighted average.
-   - If the market is resolved on Polymarket but not on-chain, include resolution data.
+    - Clamp the calculation end to Polymarket's resolution timestamp if resolved.
+    - Fetch CLOB price history (`/prices-history`) and compute a time-weighted average.
+    - If the market is resolved on Polymarket but not on-chain, include resolution data.
 5. **Concurrency** — CLOB API calls run in chunks of 15 (`CLOB_CONCURRENCY`) to avoid rate limiting.
 6. **Per-market errors** — Individual market failures are collected; the request returns HTTP 500 with a `failed` array listing which conditionIds could not be computed.
 
@@ -127,13 +127,13 @@ If any market fails computation, the API returns HTTP 500 with:
 
 ```json
 {
-  "error": "Some markets could not be computed",
-  "failed": [
-    {
-      "conditionId": "0xabc...",
-      "error": "CLOB history call failed"
-    }
-  ]
+    "error": "Some markets could not be computed",
+    "failed": [
+        {
+            "conditionId": "0xabc...",
+            "error": "CLOB history call failed"
+        }
+    ]
 }
 ```
 

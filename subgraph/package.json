@@ -1,21 +1,21 @@
 {
-  "name": "@robin-staking-vault/twap-subgraph",
-  "license": "UNLICENSED",
-  "scripts": {
-    "codegen": "graph codegen",
-    "build": "graph build",
-    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ robin-markets-twap-subgraph",
-    "create-local": "graph create --node http://localhost:8020/ robin-markets-twap-subgraph",
-    "remove-local": "graph remove --node http://localhost:8020/ robin-markets-twap-subgraph",
-    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 robin-markets-twap-subgraph",
-    "test": "graph test"
-  },
-  "dependencies": {
-    "@graphprotocol/graph-cli": "0.98.1",
-    "@graphprotocol/graph-ts": "0.37.0"
-  },
-  "devDependencies": {
-    "@graphql-eslint/eslint-plugin": "^4.4.0",
-    "matchstick-as": "0.6.0"
-  }
+    "name": "@robin-staking-vault/twap-subgraph",
+    "license": "UNLICENSED",
+    "scripts": {
+        "codegen": "graph codegen",
+        "build": "graph build",
+        "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ robin-markets-twap-subgraph",
+        "create-local": "graph create --node http://localhost:8020/ robin-markets-twap-subgraph",
+        "remove-local": "graph remove --node http://localhost:8020/ robin-markets-twap-subgraph",
+        "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 robin-markets-twap-subgraph",
+        "test": "graph test"
+    },
+    "dependencies": {
+        "@graphprotocol/graph-cli": "0.98.1",
+        "@graphprotocol/graph-ts": "0.37.0"
+    },
+    "devDependencies": {
+        "@graphql-eslint/eslint-plugin": "^4.4.0",
+        "matchstick-as": "0.6.0"
+    }
 }

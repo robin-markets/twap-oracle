@@ -1,4 +1,4 @@
-import { DataSourceError, type SubgraphMarket, type SubgraphFetchResult } from "../types.js";
+import { DataSourceError, type SubgraphMarket, type SubgraphFetchResult } from '../types.js';
 
 const MARKETS_QUERY = `
   query GetMarketsForTwap($conditionIds: [String!]!) {
@@ -40,56 +40,44 @@ const MARKETS_QUERY = `
 `;
 
 interface GraphQLResponse {
-  data?: {
-    _meta: { block: { timestamp: number } };
-    markets: SubgraphMarket[];
-  };
-  errors?: Array<{ message: string }>;
+    data?: {
+        _meta: { block: { timestamp: number } };
+        markets: SubgraphMarket[];
+    };
+    errors?: Array<{ message: string }>;
 }
 
-export async function fetchMarkets(
-  subgraphUrl: string,
-  conditionIds: string[]
-): Promise<SubgraphFetchResult> {
-  let response: Response;
-  try {
-    response = await fetch(subgraphUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: MARKETS_QUERY,
-        variables: { conditionIds },
-      }),
-    });
-  } catch (err) {
-    throw new DataSourceError(
-      "Subgraph unreachable",
-      err instanceof Error ? err.message : String(err)
-    );
-  }
+export async function fetchMarkets(subgraphUrl: string, conditionIds: string[]): Promise<SubgraphFetchResult> {
+    let response: Response;
+    try {
+        response = await fetch(subgraphUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: MARKETS_QUERY,
+                variables: { conditionIds },
+            }),
+        });
+    } catch (err) {
+        throw new DataSourceError('Subgraph unreachable', err instanceof Error ? err.message : String(err));
+    }
 
-  if (!response.ok) {
-    throw new DataSourceError(
-      `Subgraph HTTP ${response.status}`,
-      await response.text()
-    );
-  }
+    if (!response.ok) {
+        throw new DataSourceError(`Subgraph HTTP ${response.status}`, await response.text());
+    }
 
-  const json = (await response.json()) as GraphQLResponse;
+    const json = (await response.json()) as GraphQLResponse;
 
-  if (json.errors?.length) {
-    throw new DataSourceError(
-      "Subgraph query error",
-      json.errors.map((e) => e.message).join("; ")
-    );
-  }
+    if (json.errors?.length) {
+        throw new DataSourceError('Subgraph query error', json.errors.map(e => e.message).join('; '));
+    }
 
-  if (!json.data) {
-    throw new DataSourceError("Subgraph returned no data");
-  }
+    if (!json.data) {
+        throw new DataSourceError('Subgraph returned no data');
+    }
 
-  return {
-    markets: json.data.markets,
-    blockTimestamp: json.data._meta.block.timestamp,
-  };
+    return {
+        markets: json.data.markets,
+        blockTimestamp: json.data._meta.block.timestamp,
+    };
 }
