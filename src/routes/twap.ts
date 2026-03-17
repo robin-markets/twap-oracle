@@ -33,6 +33,82 @@ export function createTwapRouter(config: Config): Router {
     const polymarket = new PolymarketDataSource();
     const rpc = new RpcDataSource(config.rpcUrl, config.oracleAddress, config.submitOnchain ? config.twapSignerPrivateKey : undefined);
 
+    router.get('/prices', async (req: Request, res: Response) => {
+        try {
+            const raw = req.query.conditionIds;
+            if (!raw || typeof raw !== 'string') {
+                throw new ValidationError('conditionIds query parameter is required (comma-separated)');
+            }
+
+            const conditionIds = raw.split(',').map(id => {
+                const normalized = id.trim().toLowerCase();
+                if (!BYTES32_REGEX.test(normalized)) {
+                    throw new ValidationError(`Invalid conditionId format: ${id}`, 'Must be a 0x-prefixed 64-character hex string (bytes32)');
+                }
+                return normalized;
+            });
+
+            if (conditionIds.length === 0) {
+                throw new ValidationError('conditionIds must not be empty');
+            }
+            if (conditionIds.length > MAX_CONDITION_IDS) {
+                throw new ValidationError(`Too many conditionIds (max ${MAX_CONDITION_IDS})`);
+            }
+
+            // Fetch from subgraph
+            const fetchResult = await fetchMarkets(config.subgraphUrl, conditionIds);
+            const endTimestamp = BigInt(fetchResult.blockTimestamp);
+            const marketMap = new Map(fetchResult.markets.map(m => [m.id, m]));
+
+            const results: Array<{
+                conditionId: string;
+                twapPriceYes: string;
+                startTimestamp: string;
+                endTimestamp: string;
+                required: boolean;
+                marketEndedAt: string;
+                marketEndYesPrice: string;
+            }> = [];
+            const failed: TwapResponseFailed[] = [];
+
+            for (const id of conditionIds) {
+                const market = marketMap.get(id);
+                if (!market) {
+                    failed.push({ conditionId: id, error: 'Market not found in subgraph' });
+                    continue;
+                }
+                try {
+                    const twapData = computeTwapData(market, endTimestamp);
+                    results.push({
+                        conditionId: twapData.conditionId,
+                        twapPriceYes: twapData.twapPriceYes.toString(),
+                        startTimestamp: twapData.startTimestamp.toString(),
+                        endTimestamp: twapData.endTimestamp.toString(),
+                        required: twapData.required,
+                        marketEndedAt: twapData.marketEndedAt.toString(),
+                        marketEndYesPrice: twapData.marketEndYesPrice.toString(),
+                    });
+                } catch (err) {
+                    failed.push({ conditionId: id, error: err instanceof Error ? err.message : String(err) });
+                }
+            }
+
+            if (results.length === 0) {
+                res.status(404).json({ error: 'No TWAP data available for any of the requested markets', failed });
+                return;
+            }
+
+            res.json({ markets: results, failed });
+        } catch (err) {
+            if (err instanceof TwapError) {
+                res.status(err.statusCode).json({ error: err.message, details: err.details });
+            } else {
+                console.error('Unexpected error:', err);
+                res.status(500).json({ error: 'Internal server error' });
+            }
+        }
+    });
+
     router.post('/', async (req: Request, res: Response) => {
         try {
             const body = req.body as TwapRequest;
@@ -68,6 +144,7 @@ export function createTwapRouter(config: Config): Router {
                 const fetchResult = await fetchMarkets(config.subgraphUrl, conditionIds);
                 const subgraphLag = nowSeconds - fetchResult.blockTimestamp;
 
+                //TODO we need some more time because of the time until the transactions go through
                 if (subgraphLag > config.twapGracePeriodSeconds) {
                     subgraphFailed = true;
                     sendNotification(
@@ -120,6 +197,7 @@ export function createTwapRouter(config: Config): Router {
             const domain = await rpc.getEip712Domain();
             const signed = await signBatchTwapData(result.twapData, config.twapSignerPrivateKey, domain);
 
+            //TODO this should check if a twap is actually needed on chain. Otherwise it could revert or at least we can save gas.
             if (config.submitOnchain) {
                 // ---- Submit on-chain and return tx hash ----
                 const txHash = await rpc.submitTwap(signed.markets, signed.signature);

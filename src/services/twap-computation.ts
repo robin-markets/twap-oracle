@@ -43,8 +43,8 @@ export function computeTwapData(market: SubgraphMarket, endTimestamp: bigint, fa
             startTimestamp: 0n,
             endTimestamp: 0n,
             twapPriceYes: 0n,
-            marketEndedAt: 0n,
-            marketEndYesPrice: 0n,
+            marketEndedAt: BigInt(market.robinResolvedAt),
+            marketEndYesPrice: BigInt(market.robinResolvedYesPrice!),
         };
     }
 

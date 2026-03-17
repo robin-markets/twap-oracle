@@ -143,7 +143,12 @@ export async function computeAlternativeTwapDataBatch(
             results.set(id, { ...NO_ACTION_TWAP_DATA, conditionId: id as Hex });
         } else if (rpcData.state.marketEndedAt > 0n) {
             // Already finalized in contract — no signature needed
-            results.set(id, { ...NO_ACTION_TWAP_DATA, conditionId: id as Hex });
+            results.set(id, {
+                ...NO_ACTION_TWAP_DATA,
+                conditionId: id as Hex,
+                marketEndedAt: rpcData.state.marketEndedAt,
+                marketEndYesPrice: rpcData.state.marketEndYesPrice,
+            });
         } else if (rpcData.twapSignatureRequired) {
             needsTwapComputation.push(id);
         } else {
