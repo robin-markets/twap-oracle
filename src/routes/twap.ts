@@ -124,6 +124,7 @@ export function createTwapRouter(config: Config): Router {
                 // ---- Submit on-chain and return tx hash ----
                 const txHash = await rpc.submitTwap(signed.markets, signed.signature);
                 res.json({ txHash });
+                console.log(`Submitted on-chain: ${txHash}`);
             } else {
                 // ---- Return signed data for caller to submit ----
                 const response: TwapResponse = {

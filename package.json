@@ -9,11 +9,13 @@
         "dev": "tsx watch src/index.ts"
     },
     "dependencies": {
+        "cors": "^2.8.6",
         "dotenv": "^17.2.4",
         "express": "^4.21.0",
         "viem": "^2.21.0"
     },
     "devDependencies": {
+        "@types/cors": "^2.8.19",
         "@types/express": "^5.0.0",
         "@types/node": "^22.0.0",
         "prettier": "^3.8.1",
