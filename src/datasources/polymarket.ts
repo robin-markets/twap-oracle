@@ -61,7 +61,7 @@ export class PolymarketDataSource implements IPolymarketDataSource {
     async getMarketInfoBatch(conditionIds: string[]): Promise<Map<string, PolymarketMarketInfo>> {
         if (conditionIds.length === 0) return new Map();
 
-        const url = `${GAMMA_API_BASE}/markets?condition_ids=${conditionIds.join(',')}`;
+        const url = `${GAMMA_API_BASE}/markets?${conditionIds.map(id => `condition_ids=${id}`).join('&')}`;
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`Gamma API error: ${response.status}`);
