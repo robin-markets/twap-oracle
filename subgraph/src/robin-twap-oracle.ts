@@ -46,14 +46,18 @@ export function handleTwapUpdated(event: TwapUpdated): void {
     // Snapshot current exchange twapIndex for next oracle computation (extrapolated)
     const yesToken = TokenIndex.load(market.yesToken);
     if (yesToken) {
-        if (yesToken.lastUpdatedAt !== null && yesToken.lastPrice !== null) {
+        if (yesToken.resolvedAt !== null) {
+            market.twapSnapshotYes = yesToken.twapIndex;
+        } else if (yesToken.lastUpdatedAt !== null && yesToken.lastPrice !== null) {
             const gap = event.block.timestamp.minus(yesToken.lastUpdatedAt as BigInt);
             market.twapSnapshotYes = yesToken.twapIndex.plus((yesToken.lastPrice as BigInt).times(gap));
         }
     }
     const noToken = TokenIndex.load(market.noToken);
     if (noToken) {
-        if (noToken.lastUpdatedAt !== null && noToken.lastPrice !== null) {
+        if (noToken.resolvedAt !== null) {
+            market.twapSnapshotNo = noToken.twapIndex;
+        } else if (noToken.lastUpdatedAt !== null && noToken.lastPrice !== null) {
             const gap = event.block.timestamp.minus(noToken.lastUpdatedAt as BigInt);
             market.twapSnapshotNo = noToken.twapIndex.plus((noToken.lastPrice as BigInt).times(gap));
         }

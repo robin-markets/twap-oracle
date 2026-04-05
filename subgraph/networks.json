@@ -12,7 +12,7 @@
             "address": "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045",
             "startBlock": 82604020
         },
-        "RobinStakingVault": {
+        "RobinTwapOracle": {
             "address": "0x0000000000000000000000000000000000000000",
             "startBlock": 82604020
         }

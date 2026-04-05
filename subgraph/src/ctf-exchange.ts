@@ -29,6 +29,7 @@ function processOrderFilled(
     takerAssetId: BigInt,
     makerAmountFilled: BigInt,
     takerAmountFilled: BigInt,
+    isNegRisk: boolean,
 ): void {
     let tokenId: BigInt;
     let collateralAmount: BigInt;
@@ -55,6 +56,7 @@ function processOrderFilled(
     if (!tokenIndex) {
         tokenIndex = new TokenIndex(positionId);
         tokenIndex.twapIndex = BigInt.zero();
+        tokenIndex.isNegRisk = isNegRisk;
     }
 
     // Don't update the index if it has been resolved
@@ -71,6 +73,7 @@ export function handleOrderFilled(event: OrderFilled): void {
         event.params.takerAssetId,
         event.params.makerAmountFilled,
         event.params.takerAmountFilled,
+        false,
     );
 }
 
@@ -81,5 +84,6 @@ export function handleNegRiskOrderFilled(event: NegRiskOrderFilled): void {
         event.params.takerAssetId,
         event.params.makerAmountFilled,
         event.params.takerAmountFilled,
+        true,
     );
 }
