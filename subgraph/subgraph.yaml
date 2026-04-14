@@ -68,6 +68,48 @@ dataSources:
                 handler: handleNegRiskOrderFilled
           file: ./src/ctf-exchange.ts
     - kind: ethereum
+      name: CTFExchangeV2
+      network: matic
+      source:
+          address: '0xe111180000d2663c0091e4f400237545b87b996b'
+          abi: CTFExchangeV2
+          startBlock: 82604020
+      mapping:
+          kind: ethereum/events
+          apiVersion: 0.0.9
+          language: wasm/assemblyscript
+          entities:
+              - TokenIndex
+          abis:
+              - name: CTFExchangeV2
+                file: ./abis/CTFExchangeV2.json
+          eventHandlers:
+              - event: OrderFilled(indexed bytes32,indexed address,indexed
+                    address,uint8,uint256,uint256,uint256,uint256,bytes32,bytes32)
+                handler: handleOrderFilledV2
+          file: ./src/ctf-exchange.ts
+    - kind: ethereum
+      name: NegRiskCTFExchangeV2
+      network: matic
+      source:
+          address: '0xe2222d279d744050d28e00520010520000310f59'
+          abi: CTFExchangeV2
+          startBlock: 82604020
+      mapping:
+          kind: ethereum/events
+          apiVersion: 0.0.9
+          language: wasm/assemblyscript
+          entities:
+              - TokenIndex
+          abis:
+              - name: CTFExchangeV2
+                file: ./abis/CTFExchangeV2.json
+          eventHandlers:
+              - event: OrderFilled(indexed bytes32,indexed address,indexed
+                    address,uint8,uint256,uint256,uint256,uint256,bytes32,bytes32)
+                handler: handleNegRiskOrderFilledV2
+          file: ./src/ctf-exchange.ts
+    - kind: ethereum
       name: RobinTwapOracle
       network: matic
       source:

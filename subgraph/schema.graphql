@@ -7,6 +7,7 @@ type TokenIndex @entity(immutable: false) {
     resolvedAt: BigInt # set at resolution to freeze TWAP
     resolvedPrice: BigInt # 6 decimals
     isNegRisk: Boolean! # true if the token is a NegRisk token
+    isV2: Boolean! # true if the TokenIndex was created from a V2 exchange contract
 }
 
 type Market @entity(immutable: false) {

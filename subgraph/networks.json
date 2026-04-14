@@ -8,6 +8,14 @@
             "address": "0xC5d563A36AE78145C45a50134d48A1215220f80a",
             "startBlock": 82604020
         },
+        "CTFExchangeV2": {
+            "address": "0xe111180000d2663c0091e4f400237545b87b996b",
+            "startBlock": 82604020
+        },
+        "NegRiskCTFExchangeV2": {
+            "address": "0xe2222d279d744050d28e00520010520000310f59",
+            "startBlock": 82604020
+        },
         "ConditionalTokens": {
             "address": "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045",
             "startBlock": 82604020
