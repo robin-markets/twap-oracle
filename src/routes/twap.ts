@@ -22,6 +22,7 @@ import {
 
 const BYTES32_REGEX = /^0x[0-9a-f]{64}$/i;
 const MAX_CONDITION_IDS = 25;
+const TIME_TO_SUBMIT_ONCHAIN = 10; // seconds
 
 interface HandlerResult {
     twapData: TwapData[];
@@ -144,11 +145,11 @@ export function createTwapRouter(config: Config): Router {
                 const fetchResult = await fetchMarkets(config.subgraphUrl, conditionIds);
                 const subgraphLag = nowSeconds - fetchResult.blockTimestamp;
 
-                //TODO we need some more time because of the time until the transactions go through
-                if (subgraphLag > config.twapGracePeriodSeconds) {
+                //If the subgraph is behind more than the grace period allows, the stake/withdraw will revert. (include some time for the transaction to go through)
+                if (subgraphLag > Math.abs(config.twapGracePeriodSeconds - TIME_TO_SUBMIT_ONCHAIN)) {
                     subgraphFailed = true;
                     sendNotification(
-                        `[ALERT] Subgraph too far behind (${subgraphLag}s lag, grace period ${config.twapGracePeriodSeconds}s), ` +
+                        `[ALERT] Subgraph too far behind (${subgraphLag}s lag, grace period ${config.twapGracePeriodSeconds}s minus ${TIME_TO_SUBMIT_ONCHAIN}s for transaction), ` +
                             `falling back to RPC+Polymarket for all ${conditionIds.length} markets.`,
                     ).catch(() => {});
                 } else {

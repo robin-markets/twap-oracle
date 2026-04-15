@@ -28,7 +28,6 @@ export interface Eip712Domain {
     verifyingContract: Hex;
 }
 
-// TODO store abi somewhere central when we have the mono repo
 const oracleAbi = [
     {
         type: 'function',
