@@ -27,7 +27,7 @@ export function loadConfig(): Config {
         oracleAddress: requireEnv('ORACLE_ADDRESS') as Hex,
         port: Number(process.env.PORT ?? '3000'),
         twapDivergenceThresholdPct: Number(process.env.TWAP_DIVERGENCE_THRESHOLD_PCT ?? '10'),
-        twapGracePeriodSeconds: Number(process.env.TWAP_GRACE_PERIOD_SECONDS ?? '120'),
+        twapGracePeriodSeconds: Number(process.env.TWAP_GRACE_PERIOD_SECONDS ?? '60'),
         submitOnchain: process.env.SUBMIT_ONCHAIN === 'true',
     };
 }
