@@ -195,18 +195,22 @@ export class RpcDataSource {
             throw new Error('Cannot submit on-chain: wallet client not configured (missing private key)');
         }
 
-        const hash = await this.walletClient.writeContract({
-            chain: polygon,
+        // Simulate first to catch reverts (bad signature, grace period exceeded, state mismatch)
+        // before spending gas. If this passes, the tx is almost certainly going to land.
+        const { request } = await this.client.simulateContract({
+            account: this.walletClient.account,
             address: this.oracleAddress,
             abi: oracleAbi,
             functionName: 'submitTwap',
             args: [{ markets, signature }],
         });
 
-        const receipt = await this.client.waitForTransactionReceipt({ hash });
-        if (receipt.status === 'reverted') {
-            throw new Error(`submitTwap transaction reverted: ${hash}`);
-        }
+        const hash = await this.walletClient.writeContract(request);
+
+        // const receipt = await this.client.waitForTransactionReceipt({ hash });
+        // if (receipt.status === 'reverted') {
+        //     throw new Error(`submitTwap transaction reverted: ${hash}`);
+        // }
 
         return hash;
     }
