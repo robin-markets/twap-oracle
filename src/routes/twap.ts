@@ -1,5 +1,4 @@
 import { Router, type Request, type Response } from 'express';
-import type { Hex } from 'viem';
 import type { Config } from '../config.js';
 import { fetchMarkets } from '../datasources/subgraph.js';
 import { CachedPolymarketDataSource, PolymarketDataSource, type IPolymarketDataSource } from '../datasources/polymarket.js';
@@ -28,18 +27,12 @@ const TIME_TO_SUBMIT_ONCHAIN = 10; // seconds
 interface HandlerResult {
     twapData: TwapData[];
     failed: TwapResponseFailed[];
-    needsInit: Set<string>;
 }
 
 export function createTwapRouter(config: Config): Router {
     const router = Router();
     const polymarket = new PolymarketDataSource();
-    const rpc = new RpcDataSource(
-        config.rpcUrl,
-        config.oracleAddress,
-        config.vaultAddress,
-        config.submitOnchain ? config.twapSignerPrivateKey : undefined,
-    );
+    const rpc = new RpcDataSource(config.rpcUrl, config.oracleAddress, config.submitOnchain ? config.twapSignerPrivateKey : undefined);
 
     router.get('/prices', async (req: Request, res: Response) => {
         try {
@@ -209,16 +202,13 @@ export function createTwapRouter(config: Config): Router {
             // (not initialized, already finalized in contract, or signature not required
             // and not finalizing). The contract would silently skip them all anyway.
             const allNoOp = signed.markets.every(m => !m.required && m.marketEndedAt === 0n);
-            const initIds = Array.from(result.needsInit) as Hex[];
-            const hasWork = !allNoOp || initIds.length > 0;
 
-            if (config.submitOnchain && hasWork) {
-                // ---- Submit on-chain (bundled with vault inits if any) ----
-                const twapPayload = allNoOp ? null : { markets: signed.markets, signature: signed.signature };
-                const txHash = await rpc.submitTwap(twapPayload, initIds);
-                res.json({ txHash, initialized: initIds.length });
-                console.log(`Submitted on-chain: ${txHash} (twap=${!allNoOp}, inits=${initIds.length})`);
-            } else if (config.submitOnchain && !hasWork) {
+            if (config.submitOnchain && !allNoOp) {
+                // ---- Submit on-chain and return tx hash ----
+                const txHash = await rpc.submitTwap(signed.markets, signed.signature);
+                res.json({ txHash });
+                console.log(`Submitted on-chain: ${txHash}`);
+            } else if (config.submitOnchain && allNoOp) {
                 console.log(`Skipped on-chain submission: all ${signed.markets.length} markets are no-op`);
                 res.json({ txHash: null, skipped: true, reason: 'all markets are no-op' });
             } else {
@@ -276,7 +266,6 @@ async function handleCompleteFailure(
         return {
             twapData: [],
             failed: conditionIds.map(id => ({ conditionId: id, error: message })),
-            needsInit: new Set(),
         };
     }
 
@@ -286,7 +275,7 @@ async function handleCompleteFailure(
 
     const twapData = conditionIds.filter(id => altBatch.results.has(id)).map(id => altBatch.results.get(id)!);
 
-    return { twapData, failed, needsInit: altBatch.needsInit };
+    return { twapData, failed };
 }
 
 /**
@@ -350,7 +339,6 @@ async function handleSubgraphData(
 
     // ---- Handle missing markets (Flow B) ----
     let altTwapMap = new Map<string, TwapData>();
-    let needsInit = new Set<string>();
     if (missingIds.length > 0) {
         sendNotification(
             `[ALERT] Subgraph partial failure: ${missingIds.length}/${conditionIds.length} markets missing ` +
@@ -367,8 +355,6 @@ async function handleSubgraphData(
             for (const [id, result] of altBatch.results) {
                 altTwapMap.set(id, result);
             }
-
-            needsInit = altBatch.needsInit;
         } catch (err) {
             // Batch-level failure — all missing markets fail
             const message = err instanceof Error ? err.message : String(err);
@@ -397,5 +383,5 @@ async function handleSubgraphData(
         .filter(id => subgraphTwapMap.has(id) || altTwapMap.has(id))
         .map(id => subgraphTwapMap.get(id) ?? altTwapMap.get(id)!);
 
-    return { twapData, failed, needsInit };
+    return { twapData, failed };
 }
