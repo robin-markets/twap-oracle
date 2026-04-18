@@ -298,6 +298,7 @@ export class RpcDataSource {
             });
         }
 
+        console.log('Submitting Multicall3 transaction');
         const hash = await this.walletClient.writeContract({
             chain: polygon,
             address: MULTICALL3_ADDRESS,
