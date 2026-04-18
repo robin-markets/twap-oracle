@@ -198,12 +198,19 @@ export function createTwapRouter(config: Config): Router {
             const domain = await rpc.getEip712Domain();
             const signed = await signBatchTwapData(result.twapData, config.twapSignerPrivateKey, domain);
 
-            //TODO this should check if a twap is actually needed on chain. Otherwise it could revert or at least we can save gas.
-            if (config.submitOnchain) {
+            // Skip on-chain submission entirely if every market is a no-op
+            // (not initialized, already finalized in contract, or signature not required
+            // and not finalizing). The contract would silently skip them all anyway.
+            const allNoOp = signed.markets.every(m => !m.required && m.marketEndedAt === 0n);
+
+            if (config.submitOnchain && !allNoOp) {
                 // ---- Submit on-chain and return tx hash ----
                 const txHash = await rpc.submitTwap(signed.markets, signed.signature);
                 res.json({ txHash });
                 console.log(`Submitted on-chain: ${txHash}`);
+            } else if (config.submitOnchain && allNoOp) {
+                console.log(`Skipped on-chain submission: all ${signed.markets.length} markets are no-op`);
+                res.json({ txHash: null, skipped: true, reason: 'all markets are no-op' });
             } else {
                 // ---- Return signed data for caller to submit ----
                 const response: TwapResponse = {
