@@ -2,7 +2,7 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 import { loadConfig } from './config.js';
-import { requestLogger, rateLimit } from './middleware.js';
+import { rateLimit } from './middleware.js';
 import { createTwapRouter } from './routes/twap.js';
 
 const config = loadConfig();
@@ -10,7 +10,6 @@ const config = loadConfig();
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(requestLogger);
 app.use(rateLimit);
 
 app.use('/twap', createTwapRouter(config));

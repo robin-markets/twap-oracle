@@ -8,14 +8,6 @@ export function getClientIp(req: Request): string {
     return req.socket.remoteAddress ?? 'unknown';
 }
 
-// ---- Request logging ----
-
-export function requestLogger(req: Request, _res: Response, next: NextFunction): void {
-    const ip = getClientIp(req);
-    console.log(`${req.method} ${req.path} — ${ip}`);
-    next();
-}
-
 // ---- In-memory rate limiter ----
 
 const WINDOW_MS = 60_000; // 1 minute
