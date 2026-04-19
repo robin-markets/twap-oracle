@@ -298,6 +298,8 @@ export class RpcDataSource {
             });
         }
 
+        const gas = BigInt(500_000 + initConditionIds.length * 200_000);
+
         console.log('Submitting Multicall3 transaction');
         const hash = await this.walletClient.writeContract({
             chain: polygon,
@@ -305,6 +307,7 @@ export class RpcDataSource {
             abi: multicall3Abi,
             functionName: 'aggregate3',
             args: [calls],
+            gas,
         });
 
         const receipt = await this.client.waitForTransactionReceipt({ hash });
