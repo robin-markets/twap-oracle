@@ -301,20 +301,41 @@ export class RpcDataSource {
         const gas = BigInt(500_000 + initConditionIds.length * 500_000);
 
         console.log('Submitting Multicall3 transaction');
-        const hash = await this.walletClient.writeContract({
-            chain: polygon,
-            address: MULTICALL3_ADDRESS,
-            abi: multicall3Abi,
-            functionName: 'aggregate3',
-            args: [calls],
-            gas,
-        });
+        try {
+            const hash = await this.walletClient.writeContract({
+                chain: polygon,
+                address: MULTICALL3_ADDRESS,
+                abi: multicall3Abi,
+                functionName: 'aggregate3',
+                args: [calls],
+                gas,
+            });
 
-        const receipt = await this.client.waitForTransactionReceipt({ hash });
-        if (receipt.status === 'reverted') {
-            throw new Error(`Multicall3 aggregate3 transaction reverted: ${hash}`);
+            const receipt = await this.client.waitForTransactionReceipt({ hash });
+            if (receipt.status === 'reverted') {
+                throw new Error(`Multicall3 aggregate3 transaction reverted: ${hash}`);
+            }
+
+            return hash;
+        } catch (err) {
+            if (!twap) throw err;
+
+            console.warn('Multicall3 failed, falling back to direct submitTwap (inits will retry next cycle):', err);
+
+            const hash = await this.walletClient.writeContract({
+                chain: polygon,
+                address: this.oracleAddress,
+                abi: oracleAbi,
+                functionName: 'submitTwap',
+                args: [{ markets: twap.markets, signature: twap.signature }],
+            });
+
+            const receipt = await this.client.waitForTransactionReceipt({ hash });
+            if (receipt.status === 'reverted') {
+                throw new Error(`submitTwap fallback transaction reverted: ${hash}`);
+            }
+
+            return hash;
         }
-
-        return hash;
     }
 }
