@@ -298,7 +298,7 @@ export class RpcDataSource {
             });
         }
 
-        const gas = BigInt(500_000 + initConditionIds.length * 200_000);
+        const gas = BigInt(500_000 + initConditionIds.length * 500_000);
 
         console.log('Submitting Multicall3 transaction');
         const hash = await this.walletClient.writeContract({
