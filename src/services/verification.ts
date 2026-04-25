@@ -14,10 +14,15 @@ export interface VerificationInput {
 
 /**
  * Verify subgraph-computed TwapData against Polymarket.
- * Mutates twapData in-place to correct mismatches (trusts API over subgraph).
+ *
+ * Currently observational only — emits notifications on mismatch but does
+ * NOT mutate twapData. Auto-correction from the Polymarket REST API was
+ * disabled because it makes a centralized API a trust root for resolution
+ * outcomes (see commented-out blocks below). Re-enable only after a security
+ * review.
  *
  * For each required market:
- *   1. Resolution check — corrects twapData from API if mismatched, notifies
+ *   1. Resolution check — alerts on mismatch (no correction)
  *   2. TWAP comparison — soft warning if divergence > threshold
  */
 export async function verifyTwapDataBatch(items: VerificationInput[], polymarket: IPolymarketDataSource, config: VerificationConfig): Promise<void> {
@@ -51,10 +56,12 @@ export async function verifyTwapDataBatch(items: VerificationInput[], polymarket
             await sendNotification(
                 `[CRITICAL] Resolution mismatch for ${conditionId}: ` +
                     `subgraph shows marketEndedAt=${item.twapData.marketEndedAt} ` +
-                    `but Polymarket shows not resolved. Clearing resolution data.`,
+                    `but Polymarket shows not resolved. Manual review required (auto-correction disabled).`,
             ).catch(() => {});
-            item.twapData.marketEndedAt = 0n;
-            item.twapData.marketEndYesPrice = 0n;
+            // Auto-correction disabled — would otherwise overwrite signed payload
+            // based on an unauthenticated REST API response:
+            // item.twapData.marketEndedAt = 0n;
+            // item.twapData.marketEndYesPrice = 0n;
         }
 
         if (!subgraphResolved && polyResolved) {
@@ -62,11 +69,12 @@ export async function verifyTwapDataBatch(items: VerificationInput[], polymarket
                 const polyPrice = BigInt(Math.round(info.resolvedYesPrice * Number(PRICE_SCALE)));
                 await sendNotification(
                     `[CRITICAL] Resolution mismatch for ${conditionId}: ` +
-                        `Polymarket shows resolved but subgraph has no resolution data. ` +
-                        `Using API resolution: endedAt=${info.resolvedTimestamp}, price=${polyPrice}.`,
+                        `Polymarket shows resolved (endedAt=${info.resolvedTimestamp}, price=${polyPrice}) ` +
+                        `but subgraph has no resolution data. Manual review required (auto-correction disabled).`,
                 ).catch(() => {});
-                item.twapData.marketEndedAt = BigInt(info.resolvedTimestamp);
-                item.twapData.marketEndYesPrice = polyPrice;
+                // Auto-correction disabled:
+                // item.twapData.marketEndedAt = BigInt(info.resolvedTimestamp);
+                // item.twapData.marketEndYesPrice = polyPrice;
             } else {
                 await sendNotification(
                     `[WARN] Resolution mismatch for ${conditionId}: ` +
@@ -81,9 +89,10 @@ export async function verifyTwapDataBatch(items: VerificationInput[], polymarket
                 await sendNotification(
                     `[CRITICAL] Resolution price mismatch for ${conditionId}: ` +
                         `subgraph=${item.twapData.marketEndYesPrice}, polymarket=${polyPrice}. ` +
-                        `Using API price.`,
+                        `Manual review required (auto-correction disabled).`,
                 ).catch(() => {});
-                item.twapData.marketEndYesPrice = polyPrice;
+                // Auto-correction disabled:
+                // item.twapData.marketEndYesPrice = polyPrice;
             }
         }
 

@@ -405,8 +405,13 @@ async function handleSubgraphData(
             return { twapData, startTimestamp, endTimestamp };
         });
 
-    await verifyTwapDataBatch(verificationInputs, polymarket, {
+    // Fire-and-forget: verification is purely observational now (auto-correction
+    // is disabled in verification.ts), so we don't need to block the response on it.
+    // Errors only result in Telegram alerts; nothing throws into this scope.
+    void verifyTwapDataBatch(verificationInputs, polymarket, {
         twapDivergenceThresholdPct: config.twapDivergenceThresholdPct,
+    }).catch(err => {
+        console.error('Background verification failed:', err);
     });
 
     // ---- Merge in request order (only successful markets) ----
