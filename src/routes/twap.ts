@@ -34,11 +34,14 @@ interface HandlerResult {
 export function createTwapRouter(config: Config): Router {
     const router = Router();
     const polymarket = new PolymarketDataSource();
+    // Wallet is always configured: even in off-chain mode we fire vault
+    // initializeMarket calls in the background so frontend staking isn't
+    // blocked waiting for the next TWAP cycle to bundle them.
     const rpc = new RpcDataSource(
         config.rpcUrl,
         config.oracleAddress,
         config.vaultAddress,
-        config.submitOnchain ? config.twapSignerPrivateKey : undefined,
+        config.twapSignerPrivateKey,
     );
 
     router.get('/prices', async (req: Request, res: Response) => {
@@ -223,6 +226,20 @@ export function createTwapRouter(config: Config): Router {
                 res.json({ txHash: null, skipped: true, reason: 'all markets are no-op' });
             } else {
                 // ---- Return signed data for caller to submit ----
+                // Fire vault inits in the background (no await) so the response
+                // isn't delayed — frontend staking proceeds immediately while
+                // initializeMarket lands a few seconds later.
+                if (initIds.length > 0) {
+                    rpc.submitTwap(null, initIds).then(
+                        txHash => console.log(`Background init submitted: ${txHash} (${initIds.length} markets)`),
+                        err => {
+                            const msg = err instanceof Error ? err.message : String(err);
+                            console.error(`Background init failed (${initIds.length} markets):`, err);
+                            sendNotification(`[WARN] Background init failed for ${initIds.length} markets: ${msg}`).catch(() => {});
+                        },
+                    );
+                }
+
                 const response: TwapResponse = {
                     markets: signed.markets.map(m => ({
                         required: m.required,
