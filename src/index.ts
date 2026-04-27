@@ -10,7 +10,7 @@ const config = loadConfig();
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(rateLimit);
+//app.use(rateLimit);
 
 app.use('/twap', createTwapRouter(config));
 
