@@ -369,11 +369,6 @@ async function handleSubgraphData(
     let altTwapMap = new Map<string, TwapData>();
     let needsInit = new Set<string>();
     if (missingIds.length > 0) {
-        sendNotification(
-            `[ALERT] Subgraph partial failure: ${missingIds.length}/${conditionIds.length} markets missing ` +
-                `(${missingIds.join(', ')}). Falling back to RPC+Polymarket.`,
-        ).catch(() => {});
-
         try {
             const altBatch = await computeAlternativeTwapDataBatch(missingIds, endTimestamp, rpc, polymarket);
 
@@ -386,12 +381,28 @@ async function handleSubgraphData(
             }
 
             needsInit = altBatch.needsInit;
+
+            // Only alert about markets that are genuinely anomalous — markets
+            // initialized on Robin but absent from the subgraph. New markets
+            // (needsInit) are expected to be missing on first request.
+            const unexpectedMissing = missingIds.filter(id => !needsInit.has(id));
+            if (unexpectedMissing.length > 0) {
+                sendNotification(
+                    `[ALERT] Subgraph partial failure: ${unexpectedMissing.length}/${conditionIds.length} initialized markets missing ` +
+                        `(${unexpectedMissing.join(', ')}). Falling back to RPC+Polymarket.`,
+                ).catch(() => {});
+            }
         } catch (err) {
-            // Batch-level failure — all missing markets fail
+            // Batch-level failure — all missing markets fail. We can't tell
+            // which are new, so alert about all of them.
             const message = err instanceof Error ? err.message : String(err);
             for (const id of missingIds) {
                 failed.push({ conditionId: id, error: message });
             }
+            sendNotification(
+                `[ALERT] Subgraph partial failure: ${missingIds.length}/${conditionIds.length} markets missing ` +
+                    `(${missingIds.join(', ')}); RPC fallback also failed: ${message}`,
+            ).catch(() => {});
         }
     }
 
