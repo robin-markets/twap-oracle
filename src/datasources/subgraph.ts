@@ -47,12 +47,12 @@ interface GraphQLResponse {
     errors?: Array<{ message: string }>;
 }
 
-export async function fetchMarkets(subgraphUrl: string, conditionIds: string[]): Promise<SubgraphFetchResult> {
+export async function fetchMarkets(subgraphUrl: string, authToken: string | null, conditionIds: string[]): Promise<SubgraphFetchResult> {
     let response: Response;
     try {
         response = await fetch(subgraphUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(!!authToken ? { Authorization: 'Bearer ' + authToken } : undefined) },
             body: JSON.stringify({
                 query: MARKETS_QUERY,
                 variables: { conditionIds },

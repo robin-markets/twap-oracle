@@ -37,12 +37,7 @@ export function createTwapRouter(config: Config): Router {
     // Wallet is always configured: even in off-chain mode we fire vault
     // initializeMarket calls in the background so frontend staking isn't
     // blocked waiting for the next TWAP cycle to bundle them.
-    const rpc = new RpcDataSource(
-        config.rpcUrl,
-        config.oracleAddress,
-        config.vaultAddress,
-        config.twapSignerPrivateKey,
-    );
+    const rpc = new RpcDataSource(config.rpcUrl, config.oracleAddress, config.vaultAddress, config.twapSignerPrivateKey);
 
     router.get('/prices', async (req: Request, res: Response) => {
         try {
@@ -67,7 +62,7 @@ export function createTwapRouter(config: Config): Router {
             }
 
             // Fetch from subgraph
-            const fetchResult = await fetchMarkets(config.subgraphUrl, conditionIds);
+            const fetchResult = await fetchMarkets(config.subgraphUrl, config.subgraphAuthToken, conditionIds);
             const endTimestamp = BigInt(fetchResult.blockTimestamp);
             const marketMap = new Map(fetchResult.markets.map(m => [m.id, m]));
 
@@ -152,7 +147,7 @@ export function createTwapRouter(config: Config): Router {
             let subgraphFailed = false;
 
             try {
-                const fetchResult = await fetchMarkets(config.subgraphUrl, conditionIds);
+                const fetchResult = await fetchMarkets(config.subgraphUrl, config.subgraphAuthToken, conditionIds);
                 const subgraphLag = nowSeconds - fetchResult.blockTimestamp;
 
                 //If the subgraph is behind more than the grace period allows, the stake/withdraw will revert. (include some time for the transaction to go through)

@@ -3,6 +3,7 @@ import type { Hex } from 'viem';
 export interface Config {
     twapSignerPrivateKey: Hex;
     subgraphUrl: string;
+    subgraphAuthToken: string | null;
     rpcUrl: string;
     oracleAddress: Hex;
     vaultAddress: Hex;
@@ -26,6 +27,7 @@ export function loadConfig(): Config {
     return {
         twapSignerPrivateKey: requireEnv('TWAP_SIGNER_PRIVATE_KEY') as Hex,
         subgraphUrl: requireEnv('SUBGRAPH_URL'),
+        subgraphAuthToken: process.env.SUBGRAPH_AUTH_TOKEN ? process.env.SUBGRAPH_AUTH_TOKEN : null,
         rpcUrl: requireEnv('RPC_URL'),
         oracleAddress: requireEnv('ORACLE_ADDRESS') as Hex,
         vaultAddress: (process.env.VAULT_ADDRESS ?? DEFAULT_VAULT_ADDRESS) as Hex,
