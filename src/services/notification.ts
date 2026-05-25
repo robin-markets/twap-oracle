@@ -32,7 +32,6 @@ export async function sendNotification(message: string) {
         }),
     });
     if (!response.ok) {
-        console.error(await response.json());
-        console.error(response.statusText);
+        console.error(`Telegram sendMessage failed: HTTP ${response.status}`);
     }
 }

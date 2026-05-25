@@ -320,7 +320,8 @@ export class RpcDataSource {
         } catch (err) {
             if (!twap) throw err;
 
-            console.warn('Multicall3 failed, falling back to direct submitTwap (inits will retry next cycle):', err);
+            const errMsg = (err as { shortMessage?: string })?.shortMessage ?? (err instanceof Error ? err.message : String(err));
+            console.warn(`Multicall3 failed, falling back to direct submitTwap (inits will retry next cycle): ${errMsg}`);
 
             const hash = await this.walletClient.writeContract({
                 chain: polygon,

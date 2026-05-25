@@ -63,7 +63,12 @@ export async function fetchMarkets(subgraphUrl: string, authToken: string | null
     }
 
     if (!response.ok) {
-        throw new DataSourceError(`Subgraph HTTP ${response.status}`, await response.text());
+        const body = await response.text();
+        const sanitized = body
+            .replace(/Bearer\s+[A-Za-z0-9._\-]+/gi, 'Bearer [REDACTED]')
+            .replace(/(authorization\s*[:=]\s*)[^\s,;"']+/gi, '$1[REDACTED]')
+            .slice(0, 200);
+        throw new DataSourceError(`Subgraph HTTP ${response.status}`, sanitized);
     }
 
     const json = (await response.json()) as GraphQLResponse;
