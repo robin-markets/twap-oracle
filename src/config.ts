@@ -7,7 +7,7 @@ export interface Config {
     rpcUrl: string;
     oracleAddress: Hex;
     vaultAddress: Hex;
-    port: number;
+    ports: number[];
     twapDivergenceThresholdPct: number;
     twapGracePeriodSeconds: number;
     submitOnchain: boolean;
@@ -23,6 +23,18 @@ function requireEnv(name: string): string {
     return value;
 }
 
+function parsePorts(value: string | undefined): number[] {
+    if (!value) return [3000];
+    const ports = value
+        .split(',')
+        .map((p) => Number(p.trim()))
+        .filter((p) => Number.isFinite(p) && p > 0);
+    if (ports.length === 0) {
+        throw new Error(`Invalid PORT value: ${value}`);
+    }
+    return ports;
+}
+
 export function loadConfig(): Config {
     return {
         twapSignerPrivateKey: requireEnv('TWAP_SIGNER_PRIVATE_KEY') as Hex,
@@ -31,7 +43,7 @@ export function loadConfig(): Config {
         rpcUrl: requireEnv('RPC_URL'),
         oracleAddress: requireEnv('ORACLE_ADDRESS') as Hex,
         vaultAddress: (process.env.VAULT_ADDRESS ?? DEFAULT_VAULT_ADDRESS) as Hex,
-        port: Number(process.env.PORT ?? '3000'),
+        ports: parsePorts(process.env.PORT),
         twapDivergenceThresholdPct: Number(process.env.TWAP_DIVERGENCE_THRESHOLD_PCT ?? '10'),
         twapGracePeriodSeconds: Number(process.env.TWAP_GRACE_PERIOD_SECONDS ?? '60'),
         submitOnchain: process.env.SUBMIT_ONCHAIN === 'true',
