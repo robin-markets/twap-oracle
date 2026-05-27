@@ -1,4 +1,10 @@
 specVersion: 1.3.0
+# One-time grafting block — copies entity state from the previous deployment
+features:
+    - grafting
+graft:
+    base: QmYDCBQoUsifQ3tsgQBB5mXcrRNz9g5WFfG3kuFwNidygT
+    block: 87528352
 indexerHints:
     prune: auto
 schema:
