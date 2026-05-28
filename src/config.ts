@@ -11,6 +11,8 @@ export interface Config {
     twapDivergenceThresholdPct: number;
     twapGracePeriodSeconds: number;
     submitOnchain: boolean;
+    rateLimitEnabled: boolean;
+    trustProxy: boolean | number | string;
 }
 
 const DEFAULT_VAULT_ADDRESS = '0xcb7444981296D08dA7161B75378e3773DbF5D806';
@@ -27,12 +29,24 @@ function parsePorts(value: string | undefined): number[] {
     if (!value) return [3000];
     const ports = value
         .split(',')
-        .map((p) => Number(p.trim()))
-        .filter((p) => Number.isFinite(p) && p > 0);
+        .map(p => Number(p.trim()))
+        .filter(p => Number.isFinite(p) && p > 0);
     if (ports.length === 0) {
         throw new Error(`Invalid PORT value: ${value}`);
     }
     return ports;
+}
+
+// TRUST_PROXY accepts: "true"/"false", a hop count ("1", "2"), or an
+// Express trust-proxy string ("loopback", an IP, a CIDR, or a comma-separated
+// list). See https://expressjs.com/en/guide/behind-proxies.html
+function parseTrustProxy(raw: string | undefined): boolean | number | string {
+    if (raw === undefined || raw === '') return false;
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    const asNumber = Number(raw);
+    if (Number.isInteger(asNumber) && asNumber >= 0) return asNumber;
+    return raw;
 }
 
 export function loadConfig(): Config {
@@ -47,5 +61,7 @@ export function loadConfig(): Config {
         twapDivergenceThresholdPct: Number(process.env.TWAP_DIVERGENCE_THRESHOLD_PCT ?? '10'),
         twapGracePeriodSeconds: Number(process.env.TWAP_GRACE_PERIOD_SECONDS ?? '60'),
         submitOnchain: process.env.SUBMIT_ONCHAIN === 'true',
+        rateLimitEnabled: process.env.RATE_LIMIT_ENABLED === 'true',
+        trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
     };
 }

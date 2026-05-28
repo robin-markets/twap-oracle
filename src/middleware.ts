@@ -2,10 +2,12 @@ import type { Request, Response, NextFunction } from 'express';
 
 // ---- IP helpers ----
 
+// Returns the client IP as resolved by Express. When `app.set('trust proxy', …)`
+// is configured, `req.ip` honors X-Forwarded-For from trusted hops only and is
+// not spoofable by direct callers. If trust proxy is off, `req.ip` falls back
+// to the socket peer address.
 export function getClientIp(req: Request): string {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
-    return req.socket.remoteAddress ?? 'unknown';
+    return req.ip ?? req.socket.remoteAddress ?? 'unknown';
 }
 
 // ---- In-memory rate limiter ----
@@ -22,6 +24,10 @@ const store = new Map<string, RateLimitEntry>();
 
 export function rateLimit(req: Request, res: Response, next: NextFunction): void {
     const ip = getClientIp(req);
+    // TODO: remove once the ROFL proxy setup is verified.
+    console.log(
+        `[ip] ${req.method} ${req.originalUrl} ip=${ip} socket=${req.socket.remoteAddress} xff=${req.headers['x-forwarded-for'] ?? '-'}`,
+    );
     const now = Date.now();
 
     let entry = store.get(ip);

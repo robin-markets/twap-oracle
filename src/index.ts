@@ -8,9 +8,12 @@ import { createTwapRouter } from './routes/twap.js';
 const config = loadConfig();
 
 const app = express();
+app.set('trust proxy', config.trustProxy);
 app.use(cors());
 app.use(express.json());
-//app.use(rateLimit);
+if (config.rateLimitEnabled) {
+    app.use(rateLimit);
+}
 
 app.use('/twap', createTwapRouter(config));
 
@@ -23,4 +26,6 @@ for (const port of config.ports) {
         console.log(`Robin TWAP Oracle listening on port ${port}`);
     });
 }
-console.log(`  Oracle:  ${config.oracleAddress}`);
+console.log(`  Oracle:      ${config.oracleAddress}`);
+console.log(`  Trust proxy: ${String(config.trustProxy)}`);
+console.log(`  Rate limit:  ${config.rateLimitEnabled ? 'enabled' : 'disabled'}`);
