@@ -1,0 +1,16 @@
+name: Validate ROFL config
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+
+jobs:
+    validate:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: oasisprotocol/build-deploy-rofl-action@master
+              with:
+                  network: testnet
+                  only_validate: true

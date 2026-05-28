@@ -1,0 +1,21 @@
+#Docker-compose setup for OASIS ROFL
+services:
+    twap-oracle:
+        image: 'docker.io/0xledgerwing/twap_oracle@sha256:25270ebaf0bbc0bf93bfaf4ab233a685eefceef87d5d06392f91033ccc4d7695'
+        platform: linux/amd64
+        environment:
+            - SUBMIT_ONCHAIN=false
+            - PORT=3000,8080
+            - SUBGRAPH_URL=https://gateway.thegraph.com/api/subgraphs/id/9ZVt29ycuVmQTdQPMR5wMDbJ7BJPzYZWQiBPPQG6QTEa
+            - ORACLE_ADDRESS=0xf08a02deeB4C7A09fAc8e8C6f8508D724612796f
+            - VAULT_ADDRESS=0xcb7444981296D08dA7161B75378e3773DbF5D806
+            - TWAP_SIGNER_PRIVATE_KEY=${TWAP_SIGNER_PRIVATE_KEY}
+            - SUBGRAPH_AUTH_TOKEN=${SUBGRAPH_AUTH_TOKEN}
+            - RPC_URL=${RPC_URL}
+            - RATE_LIMIT_ENABLED=true
+            - TRUST_PROXY=1 # trust one hop (the Oasis proxy in front of 8080)
+        ports:
+            - '3000:3000'
+            - '8080:8080'
+        annotations:
+            net.oasis.proxy.ports.8080.custom_domain: twap-rofl.robin.markets
