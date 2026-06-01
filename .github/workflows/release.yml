@@ -66,6 +66,7 @@ jobs:
                   network: testnet
                   skip_update: true
                   skip_deploy: true
+                  update_manifest: true
 
             - name: Create release branch, commit, and tag
               env:
