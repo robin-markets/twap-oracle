@@ -8,7 +8,6 @@ const MAX_PRICE_HISTORY_POINTS = 100;
 
 interface GammaMarketResponse {
     conditionId: string;
-    questionID: string; // bytes32 hex — Polymarket questionId (capital-ID spelling)
     outcomes: string; // JSON string like '["Yes", "No"]'
     outcomePrices: string; // JSON string like '["0.55","0.45"]'
     clobTokenIds: string; // JSON string like '["123...", "456..."]'
@@ -116,7 +115,6 @@ export class PolymarketDataSource implements IPolymarketDataSource {
                 resolvedYesPrice,
                 resolvedTimestamp,
                 yesTokenId: tokenIds[yesIdx],
-                questionId: market.questionID,
             });
         }
 

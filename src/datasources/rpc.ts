@@ -1,7 +1,6 @@
 import {
     createPublicClient,
     createWalletClient,
-    encodeFunctionData,
     http,
     type Hex,
     type PublicClient,
@@ -13,9 +12,6 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { polygon } from 'viem/chains';
 import type { TwapData } from '../types.js';
-
-// Canonical Multicall3 address (same on most chains, including Polygon)
-const MULTICALL3_ADDRESS: Hex = '0xcA11bde05977b3631167028862bE2a173976CA11';
 
 export interface RpcMarketState {
     lastTwapUpdate: bigint;
@@ -31,50 +27,6 @@ export interface Eip712Domain {
     chainId: number;
     verifyingContract: Hex;
 }
-
-const robinStakingVaultAbi = [
-    {
-        type: 'function',
-        inputs: [
-            { name: 'conditionId', internalType: 'bytes32', type: 'bytes32' },
-            { name: 'questionId', internalType: 'bytes32', type: 'bytes32' },
-        ],
-        name: 'initializeMarket',
-        outputs: [],
-        stateMutability: 'nonpayable',
-    },
-] as const;
-
-const multicall3Abi = [
-    {
-        inputs: [
-            {
-                components: [
-                    { internalType: 'address', name: 'target', type: 'address' },
-                    { internalType: 'bool', name: 'allowFailure', type: 'bool' },
-                    { internalType: 'bytes', name: 'callData', type: 'bytes' },
-                ],
-                internalType: 'struct Multicall3.Call3[]',
-                name: 'calls',
-                type: 'tuple[]',
-            },
-        ],
-        name: 'aggregate3',
-        outputs: [
-            {
-                components: [
-                    { internalType: 'bool', name: 'success', type: 'bool' },
-                    { internalType: 'bytes', name: 'returnData', type: 'bytes' },
-                ],
-                internalType: 'struct Multicall3.Result[]',
-                name: 'returnData',
-                type: 'tuple[]',
-            },
-        ],
-        stateMutability: 'payable',
-        type: 'function',
-    },
-];
 
 const oracleAbi = [
     {
@@ -161,7 +113,6 @@ export class RpcDataSource {
     constructor(
         rpcUrl: string,
         private oracleAddress: Hex,
-        private vaultAddress: Hex,
         privateKey?: Hex,
     ) {
         const transport = http(rpcUrl);
@@ -236,110 +187,26 @@ export class RpcDataSource {
     }
 
     /**
-     * Submit signed TWAP data on-chain. If `inits` is non-empty, the call is bundled with vault
-     * `initializeMarket(conditionId, questionId)` calls via Multicall3 so everything lands in a
-     * single transaction. Init calls allow failure (we still want the TWAP to land if a market was
-     * initialized in a race).
-     *
-     * Pass `twap = null` to only run inits (no TWAP submission).
+     * Submit signed TWAP data to the oracle on-chain.
      */
-    async submitTwap(twap: { markets: TwapData[]; signature: Hex } | null, inits: { conditionId: Hex; questionId: Hex }[] = []): Promise<Hex> {
+    async submitTwap(twap: { markets: TwapData[]; signature: Hex }): Promise<Hex> {
         if (!this.walletClient) {
             throw new Error('Cannot submit on-chain: wallet client not configured (missing private key)');
         }
 
-        const hasInits = inits.length > 0;
-        const hasTwap = twap !== null;
+        const hash = await this.walletClient.writeContract({
+            chain: polygon,
+            address: this.oracleAddress,
+            abi: oracleAbi,
+            functionName: 'submitTwap',
+            args: [{ markets: twap.markets, signature: twap.signature }],
+        });
 
-        if (!hasInits && !hasTwap) {
-            throw new Error('submitTwap called with nothing to do');
+        const receipt = await this.client.waitForTransactionReceipt({ hash });
+        if (receipt.status === 'reverted') {
+            throw new Error(`submitTwap transaction reverted: ${hash}`);
         }
 
-        // Fast path: a plain submitTwap (no inits) goes directly to the oracle,
-        // avoiding the Multicall3 hop and its slight gas overhead.
-        if (!hasInits && hasTwap) {
-            const hash = await this.walletClient.writeContract({
-                chain: polygon,
-                address: this.oracleAddress,
-                abi: oracleAbi,
-                functionName: 'submitTwap',
-                args: [{ markets: twap.markets, signature: twap.signature }],
-            });
-
-            const receipt = await this.client.waitForTransactionReceipt({ hash });
-            if (receipt.status === 'reverted') {
-                throw new Error(`submitTwap transaction reverted: ${hash}`);
-            }
-
-            return hash;
-        }
-
-        // Multicall path: build [initializeMarket × N (allowFailure), submitTwap (no failure)]
-        const calls: { target: Hex; allowFailure: boolean; callData: Hex }[] = [];
-
-        for (const { conditionId, questionId } of inits) {
-            calls.push({
-                target: this.vaultAddress,
-                allowFailure: true,
-                callData: encodeFunctionData({
-                    abi: robinStakingVaultAbi,
-                    functionName: 'initializeMarket',
-                    args: [conditionId, questionId],
-                }),
-            });
-        }
-
-        if (hasTwap) {
-            calls.push({
-                target: this.oracleAddress,
-                allowFailure: false,
-                callData: encodeFunctionData({
-                    abi: oracleAbi,
-                    functionName: 'submitTwap',
-                    args: [{ markets: twap.markets, signature: twap.signature }],
-                }),
-            });
-        }
-
-        const gas = BigInt(500_000 + inits.length * 500_000);
-
-        console.log('Submitting Multicall3 transaction');
-        try {
-            const hash = await this.walletClient.writeContract({
-                chain: polygon,
-                address: MULTICALL3_ADDRESS,
-                abi: multicall3Abi,
-                functionName: 'aggregate3',
-                args: [calls],
-                gas,
-            });
-
-            const receipt = await this.client.waitForTransactionReceipt({ hash });
-            if (receipt.status === 'reverted') {
-                throw new Error(`Multicall3 aggregate3 transaction reverted: ${hash}`);
-            }
-
-            return hash;
-        } catch (err) {
-            if (!twap) throw err;
-
-            const errMsg = (err as { shortMessage?: string })?.shortMessage ?? (err instanceof Error ? err.message : String(err));
-            console.warn(`Multicall3 failed, falling back to direct submitTwap (inits will retry next cycle): ${errMsg}`);
-
-            const hash = await this.walletClient.writeContract({
-                chain: polygon,
-                address: this.oracleAddress,
-                abi: oracleAbi,
-                functionName: 'submitTwap',
-                args: [{ markets: twap.markets, signature: twap.signature }],
-            });
-
-            const receipt = await this.client.waitForTransactionReceipt({ hash });
-            if (receipt.status === 'reverted') {
-                throw new Error(`submitTwap fallback transaction reverted: ${hash}`);
-            }
-
-            return hash;
-        }
+        return hash;
     }
 }

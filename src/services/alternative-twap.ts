@@ -17,7 +17,7 @@ const NO_ACTION_TWAP_DATA: Omit<TwapData, 'conditionId'> = {
 export interface AlternativeTwapBatchResult {
     results: Map<string, TwapData>;
     failed: Map<string, string>; // conditionId → error message
-    needsInit: Map<string, Hex>; // conditionId → questionId, for markets not yet initialized on the oracle
+    uninitialized: Set<string>; // conditionIds not yet initialized on the oracle (expected to be missing from the subgraph)
 }
 
 /**
@@ -134,16 +134,16 @@ export async function computeAlternativeTwapDataBatch(
     // 2. Categorize markets
     const results = new Map<string, TwapData>();
     const failed = new Map<string, string>();
-    const needsInitIds: string[] = [];
+    const uninitialized = new Set<string>();
     const needsFinalizationCheck: string[] = [];
     const needsTwapComputation: string[] = [];
 
     for (const id of conditionIds) {
         const rpcData = rpcBatch.get(id as Hex)!;
         if (rpcData.state.marketInitTimestamp === 0n) {
-            // Not initialized on the oracle — flag for vault initialization;
-            // contract would silently skip the TWAP entry anyway.
-            needsInitIds.push(id);
+            // Not initialized on the oracle — emit a no-op entry; the contract skips it.
+            // (Initialization happens on the user's first deposit, not from this server.)
+            uninitialized.add(id);
             results.set(id, { ...NO_ACTION_TWAP_DATA, conditionId: id as Hex });
         } else if (rpcData.state.marketEndedAt > 0n) {
             // Already finalized in contract — no signature needed
@@ -164,32 +164,12 @@ export async function computeAlternativeTwapDataBatch(
         }
     }
 
-    //TODO revert before rofl deployment
-    // 3. Batch Polymarket for all markets that need data: TWAP computation + finalization check
-    // need it for CLOB history / resolution; needs-init markets need it only for their questionId
-    // (required to call vault.initializeMarket). The three sets are disjoint by construction.
-    const needsInit = new Map<string, Hex>();
-    const twapNeedPolymarket = [...needsTwapComputation, ...needsFinalizationCheck];
-    const allNeedPolymarket = [...twapNeedPolymarket, ...needsInitIds];
-    if (allNeedPolymarket.length === 0) return { results, failed, needsInit };
+    // 3. Batch Polymarket for all markets that need data (both TWAP computation
+    // and finalization check markets need Polymarket info for CLOB history / resolution)
+    const allNeedPolymarket = [...needsTwapComputation, ...needsFinalizationCheck];
+    if (allNeedPolymarket.length === 0) return { results, failed, uninitialized };
 
-    let polymarketInfoMap: Map<string, PolymarketMarketInfo>;
-    try {
-        polymarketInfoMap = await polymarket.getMarketInfoBatch(allNeedPolymarket);
-    } catch (err) {
-        // If any market genuinely needs TWAP/finalization data, propagate so the caller marks them
-        // failed (pre-existing behavior). If this batch is ONLY uninitialized markets, init is a
-        // best-effort convenience — degrade gracefully and let them initialize on first deposit.
-        if (twapNeedPolymarket.length > 0) throw err;
-        return { results, failed, needsInit };
-    }
-
-    // Resolve questionIds for the not-yet-initialized markets. Markets whose questionId can't be
-    // resolved are dropped from needsInit — they'll be initialized on their first deposit instead.
-    for (const id of needsInitIds) {
-        const questionId = polymarketInfoMap.get(id)?.questionId;
-        if (questionId) needsInit.set(id, questionId as Hex);
-    }
+    const polymarketInfoMap = await polymarket.getMarketInfoBatch(allNeedPolymarket);
 
     // 4. Only compute if market resolved on Polymarket (needs finalization)
     for (const id of needsFinalizationCheck) {
@@ -225,5 +205,5 @@ export async function computeAlternativeTwapDataBatch(
         }
     }
 
-    return { results, failed, needsInit };
+    return { results, failed, uninitialized };
 }

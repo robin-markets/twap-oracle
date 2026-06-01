@@ -39,6 +39,10 @@ For finalization (`_applyFinalTwap`), the contract splits the period:
 
 The server uses the subgraph's last indexed block timestamp as `endTimestamp` for Flow A/B, ensuring the signed data is consistent with the indexed state and that the vault contract would revert if the subgraph is falling too much out of sync. `twapPriceYes` must be the average over the pre-resolution period only when finalizing.
 
+### On-chain submission
+
+When `SUBMIT_ONCHAIN` is enabled, the server submits the signed batch directly to the oracle's `submitTwap`; otherwise it returns the signed data for the caller to submit.
+
 ### Price scale
 
 All prices use 6-decimal fixed-point: `PRICE_SCALE = 1_000_000` (1e6 = 100%).
@@ -108,7 +112,7 @@ Same as Flow A for found markets, plus:
 
 Fallback path when the subgraph is down, returning errors, or lagging behind by more than `TWAP_GRACE_PERIOD_SECONDS`.
 
-1. **Batch RPC** (`rpc.ts`) — `multicall` to the oracle contract fetches `getMarketState` and `isTwapSignatureRequired` for all markets in a single request.
+1. **Batch RPC** (`rpc.ts`) — a single `batchGetMarketState` view call on the oracle returns market state and `isTwapSignatureRequired` for all markets at once.
 2. **Categorize markets** (`alternative-twap.ts`) — Markets are split into three groups:
     - **Already finalized** in the contract (`marketEndedAt > 0`): return `required: false`.
     - **TWAP signature required**: needs full CLOB-based TWAP computation.
@@ -143,12 +147,12 @@ On success (all markets computed), the response is HTTP 200 with `failed: []`.
 
 ## Data Sources
 
-| Source                   | What it provides                                                         | When used                                       |
-| ------------------------ | ------------------------------------------------------------------------ | ----------------------------------------------- |
-| **Subgraph**             | Exchange twapIndex, snapshots, resolution data from on-chain events      | Primary source (Flow A/B)                       |
-| **RPC (multicall)**      | Contract market state: lastTwapUpdate, accumulators, finalization status | Fallback (Flow B/C)                             |
-| **Polymarket Gamma API** | Current spot prices, resolution status, CLOB token IDs                   | Fallback prices, verification, alternative flow |
-| **Polymarket CLOB API**  | Historical price samples (`/prices-history`)                             | Alternative TWAP computation (Flow B/C)         |
+| Source                          | What it provides                                                         | When used                                       |
+| ------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------- |
+| **Subgraph**                    | Exchange twapIndex, snapshots, resolution data from on-chain events      | Primary source (Flow A/B)                       |
+| **RPC (`batchGetMarketState`)** | Contract market state: lastTwapUpdate, accumulators, finalization status | Fallback (Flow B/C)                             |
+| **Polymarket Gamma API**        | Current spot prices, resolution status, CLOB token IDs                   | Fallback prices, verification, alternative flow |
+| **Polymarket CLOB API**         | Historical price samples (`/prices-history`)                             | Alternative TWAP computation (Flow B/C)         |
 
 A request-scoped `CachedPolymarketDataSource` wraps the Gamma API to deduplicate batch fetches across different stages of a single request (fallback lookup, verification, alternative computation).
 
