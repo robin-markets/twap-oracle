@@ -165,7 +165,7 @@ export function createTwapRouter(config: Config): Router {
                 subgraphFailed = true;
                 let message = '';
                 if (err instanceof DataSourceError) {
-                    message = `Error: ${err.message}`;
+                    message = `Error: ${err.message}${err.details ? ` — ${err.details}` : ''}`;
                 } else {
                     message = `Unknown error: ${err instanceof Error ? err.message : String(err)}`;
                 }
