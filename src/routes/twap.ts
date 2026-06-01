@@ -28,7 +28,7 @@ const TIME_TO_SUBMIT_ONCHAIN = 10; // seconds
 interface HandlerResult {
     twapData: TwapData[];
     failed: TwapResponseFailed[];
-    needsInit: Set<string>;
+    needsInit: Map<string, Hex>; // conditionId → questionId
 }
 
 export function createTwapRouter(config: Config): Router {
@@ -207,15 +207,15 @@ export function createTwapRouter(config: Config): Router {
             // (not initialized, already finalized in contract, or signature not required
             // and not finalizing). The contract would silently skip them all anyway.
             const allNoOp = signed.markets.every(m => !m.required && m.marketEndedAt === 0n);
-            const initIds = Array.from(result.needsInit) as Hex[];
-            const hasWork = !allNoOp || initIds.length > 0;
+            const inits = Array.from(result.needsInit, ([conditionId, questionId]) => ({ conditionId: conditionId as Hex, questionId }));
+            const hasWork = !allNoOp || inits.length > 0;
 
             if (config.submitOnchain && hasWork) {
                 // ---- Submit on-chain (bundled with vault inits if any) ----
                 const twapPayload = allNoOp ? null : { markets: signed.markets, signature: signed.signature };
-                const txHash = await rpc.submitTwap(twapPayload, initIds);
-                res.json({ txHash, initialized: initIds.length });
-                console.log(`Submitted on-chain: ${txHash} (twap=${!allNoOp}, inits=${initIds.length})`);
+                const txHash = await rpc.submitTwap(twapPayload, inits);
+                res.json({ txHash, initialized: inits.length });
+                console.log(`Submitted on-chain: ${txHash} (twap=${!allNoOp}, inits=${inits.length})`);
             } else if (config.submitOnchain && !hasWork) {
                 console.log(`Skipped on-chain submission: all ${signed.markets.length} markets are no-op`);
                 res.json({ txHash: null, skipped: true, reason: 'all markets are no-op' });
@@ -224,13 +224,13 @@ export function createTwapRouter(config: Config): Router {
                 // Fire vault inits in the background (no await) so the response
                 // isn't delayed — frontend staking proceeds immediately while
                 // initializeMarket lands a few seconds later.
-                if (initIds.length > 0) {
-                    rpc.submitTwap(null, initIds).then(
-                        txHash => console.log(`Background init submitted: ${txHash} (${initIds.length} markets)`),
+                if (inits.length > 0) {
+                    rpc.submitTwap(null, inits).then(
+                        txHash => console.log(`Background init submitted: ${txHash} (${inits.length} markets)`),
                         err => {
                             const msg = err instanceof Error ? err.message : String(err);
-                            console.error(`Background init failed (${initIds.length} markets):`, err);
-                            sendNotification(`[WARN] Background init failed for ${initIds.length} markets: ${msg}`).catch(() => {});
+                            console.error(`Background init failed (${inits.length} markets):`, err);
+                            sendNotification(`[WARN] Background init failed for ${inits.length} markets: ${msg}`).catch(() => {});
                         },
                     );
                 }
@@ -288,7 +288,7 @@ async function handleCompleteFailure(
         return {
             twapData: [],
             failed: conditionIds.map(id => ({ conditionId: id, error: message })),
-            needsInit: new Set(),
+            needsInit: new Map(),
         };
     }
 
@@ -362,7 +362,7 @@ async function handleSubgraphData(
 
     // ---- Handle missing markets (Flow B) ----
     let altTwapMap = new Map<string, TwapData>();
-    let needsInit = new Set<string>();
+    let needsInit = new Map<string, Hex>();
     if (missingIds.length > 0) {
         try {
             const altBatch = await computeAlternativeTwapDataBatch(missingIds, endTimestamp, rpc, polymarket);

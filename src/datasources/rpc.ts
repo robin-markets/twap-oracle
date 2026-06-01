@@ -35,7 +35,10 @@ export interface Eip712Domain {
 const robinStakingVaultAbi = [
     {
         type: 'function',
-        inputs: [{ name: 'conditionId', internalType: 'bytes32', type: 'bytes32' }],
+        inputs: [
+            { name: 'conditionId', internalType: 'bytes32', type: 'bytes32' },
+            { name: 'questionId', internalType: 'bytes32', type: 'bytes32' },
+        ],
         name: 'initializeMarket',
         outputs: [],
         stateMutability: 'nonpayable',
@@ -233,19 +236,19 @@ export class RpcDataSource {
     }
 
     /**
-     * Submit signed TWAP data on-chain. If `initConditionIds` is non-empty,
-     * the call is bundled with vault `initializeMarket` calls via Multicall3
-     * so everything lands in a single transaction. Init calls allow failure
-     * (we still want the TWAP to land if a market was initialized in a race).
+     * Submit signed TWAP data on-chain. If `inits` is non-empty, the call is bundled with vault
+     * `initializeMarket(conditionId, questionId)` calls via Multicall3 so everything lands in a
+     * single transaction. Init calls allow failure (we still want the TWAP to land if a market was
+     * initialized in a race).
      *
      * Pass `twap = null` to only run inits (no TWAP submission).
      */
-    async submitTwap(twap: { markets: TwapData[]; signature: Hex } | null, initConditionIds: Hex[] = []): Promise<Hex> {
+    async submitTwap(twap: { markets: TwapData[]; signature: Hex } | null, inits: { conditionId: Hex; questionId: Hex }[] = []): Promise<Hex> {
         if (!this.walletClient) {
             throw new Error('Cannot submit on-chain: wallet client not configured (missing private key)');
         }
 
-        const hasInits = initConditionIds.length > 0;
+        const hasInits = inits.length > 0;
         const hasTwap = twap !== null;
 
         if (!hasInits && !hasTwap) {
@@ -274,14 +277,14 @@ export class RpcDataSource {
         // Multicall path: build [initializeMarket × N (allowFailure), submitTwap (no failure)]
         const calls: { target: Hex; allowFailure: boolean; callData: Hex }[] = [];
 
-        for (const conditionId of initConditionIds) {
+        for (const { conditionId, questionId } of inits) {
             calls.push({
                 target: this.vaultAddress,
                 allowFailure: true,
                 callData: encodeFunctionData({
                     abi: robinStakingVaultAbi,
                     functionName: 'initializeMarket',
-                    args: [conditionId],
+                    args: [conditionId, questionId],
                 }),
             });
         }
@@ -298,7 +301,7 @@ export class RpcDataSource {
             });
         }
 
-        const gas = BigInt(500_000 + initConditionIds.length * 500_000);
+        const gas = BigInt(500_000 + inits.length * 500_000);
 
         console.log('Submitting Multicall3 transaction');
         try {

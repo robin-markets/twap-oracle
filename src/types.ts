@@ -61,6 +61,7 @@ export interface PolymarketMarketInfo {
     resolvedYesPrice?: number;
     resolvedTimestamp?: number;
     yesTokenId: string;
+    questionId?: string;
 }
 
 // ---- API types ----
