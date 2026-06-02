@@ -1,4 +1,4 @@
-const DEDUP_WINDOW_MS = 1 * 60 * 1000; // 5 minutes
+const DEDUP_WINDOW_MS = 1 * 60 * 1000;
 const recentMessages = new Map<string, number>();
 
 export async function sendNotification(message: string) {
