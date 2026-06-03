@@ -6,6 +6,9 @@ const CLOB_API_BASE = 'https://clob.polymarket.com';
 
 const MAX_PRICE_HISTORY_POINTS = 100;
 
+interface GammaResponse {
+    markets: GammaMarketResponse[];
+}
 interface GammaMarketResponse {
     conditionId: string;
     outcomes: string; // JSON string like '["Yes", "No"]'
@@ -64,16 +67,13 @@ export class PolymarketDataSource implements IPolymarketDataSource {
      * because resolution status drives the oracle's resolved-price handling.
      */
     private async fetchMarkets(conditionIds: string[], closed?: boolean): Promise<GammaMarketResponse[]> {
-        const params = [
-            ...conditionIds.map(id => `condition_ids=${id}`),
-            ...(closed === undefined ? [] : [`closed=${closed}`]),
-        ];
-        const url = `${GAMMA_API_BASE}/markets?${params.join('&')}`;
+        const params = [...conditionIds.map(id => `condition_ids=${id}`), ...(closed === undefined ? [] : [`closed=${closed}`])];
+        const url = `${GAMMA_API_BASE}/markets/keyset?${params.join('&')}`;
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`Gamma API error: ${response.status}`);
         }
-        return (await response.json()) as GammaMarketResponse[];
+        return ((await response.json()) as GammaResponse).markets;
     }
 
     /**
@@ -83,10 +83,7 @@ export class PolymarketDataSource implements IPolymarketDataSource {
     async getMarketInfoBatch(conditionIds: string[]): Promise<Map<string, PolymarketMarketInfo>> {
         if (conditionIds.length === 0) return new Map();
 
-        const [open, closed] = await Promise.all([
-            this.fetchMarkets(conditionIds),
-            this.fetchMarkets(conditionIds, true),
-        ]);
+        const [open, closed] = await Promise.all([this.fetchMarkets(conditionIds), this.fetchMarkets(conditionIds, true)]);
 
         // Dedupe by conditionId in case a market appears in both responses.
         const marketsByConditionId = new Map<string, GammaMarketResponse>();
