@@ -55,19 +55,43 @@ export class PolymarketDataSource implements IPolymarketDataSource {
     }
 
     /**
+     * Fetch raw gamma-api markets for a set of condition ids.
+     *
+     * The /markets endpoint now excludes closed markets by default, and there is no way to request
+     * both open and closed markets for a set of condition ids in a single query. So every lookup
+     * fires two requests in parallel — one with the default `closed` filter (open markets) and one
+     * with `closed=true` (closed markets) — and merges the results. Closed markets matter here
+     * because resolution status drives the oracle's resolved-price handling.
+     */
+    private async fetchMarkets(conditionIds: string[], closed?: boolean): Promise<GammaMarketResponse[]> {
+        const params = [
+            ...conditionIds.map(id => `condition_ids=${id}`),
+            ...(closed === undefined ? [] : [`closed=${closed}`]),
+        ];
+        const url = `${GAMMA_API_BASE}/markets?${params.join('&')}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Gamma API error: ${response.status}`);
+        }
+        return (await response.json()) as GammaMarketResponse[];
+    }
+
+    /**
      * Fetch market info for multiple condition IDs in a single request.
      * Returns a map from conditionId to market info (missing markets are omitted).
      */
     async getMarketInfoBatch(conditionIds: string[]): Promise<Map<string, PolymarketMarketInfo>> {
         if (conditionIds.length === 0) return new Map();
 
-        const url = `${GAMMA_API_BASE}/markets?${conditionIds.map(id => `condition_ids=${id}`).join('&')}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Gamma API error: ${response.status}`);
-        }
+        const [open, closed] = await Promise.all([
+            this.fetchMarkets(conditionIds),
+            this.fetchMarkets(conditionIds, true),
+        ]);
 
-        const markets = (await response.json()) as GammaMarketResponse[];
+        // Dedupe by conditionId in case a market appears in both responses.
+        const marketsByConditionId = new Map<string, GammaMarketResponse>();
+        for (const market of [...open, ...closed]) marketsByConditionId.set(market.conditionId, market);
+        const markets = Array.from(marketsByConditionId.values());
         const result = new Map<string, PolymarketMarketInfo>();
 
         for (const market of markets) {
