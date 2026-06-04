@@ -31,22 +31,24 @@ deployments:
           tcb_validity_period: 30
           min_tcb_evaluation_data_number: 18
           tdx: {}
-      enclaves: []
+      enclaves:
+        - id: 5KLEGgYKQbrCKXncXaMm/rQsjjAk119F9ai+thL4Hx8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+        - id: y7lOEV5JYBfe59HtBUpa39AAgtxhbeEj1GU/lNkR6E0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
       endorsements:
         - any: {}
       fees: endorsing_node
       max_expiration: 3
     secrets:
       - name: SUBGRAPH_AUTH_TOKEN
-        value: pGJwa1ggF1hpfI3hxxnm/Xy2U7fE2Fub6sXNGd34Ufubf+KuBA5kbmFtZVgjt4LFFVWy0Zm+wafNCjfmgibfJRfZspTpAVBkrJuXxHwXsMplbm9uY2VPJC4ryz7WeIvYbnc3M8YUZXZhbHVlWDAWDcIPwPzAwjpDcgMdpihxxm6SBWk/0U//aeFZpRz54KnbAMxkXjpb0JZWGdqrZSA=
+        value: pGJwa1ggZ2W9+1DvNSIGXqiTczU1zNNvbV3vImf1FdPRRLB8Sj9kbmFtZVgjGtI+NbMixNooYBy2u2VqaQNLVp5jwVmh+7WIEq+/Ycgpj6Nlbm9uY2VPYrJ9Xo78aHkN4THb7TMYZXZhbHVlWDD0Dvl72xvUMoI97AtDuTGH4Gk9OzXchCT7poJbAFjw0wQArKJ4mHfN1CxgdZOAhw0=
       - name: RPC_URL
-        value: pGJwa1gg7h89lzowDjt2YVetCv/JAsWIWO6xyFSHioAth/q1KgdkbmFtZVdxZSi2ewjjTUtKH98IW6HvUFX9/YKOsmVub25jZU/jrTU0wiw3yiWYJ3FtiHtldmFsdWVYbx1F6BR6x9KfKn7DvDALrGwEeQnUhKTXLojtPAs7PkkVePMU9swjSn6USfFCgh+ri7nzX7TSvWe1w0CMEXFF2PdbRRx3AXbKn+KmugMXdlHs/hPC6ejmZiNcAE7fahpzTQysezv7ZGZBiD9isyh8og==
+        value: pGJwa1ggMAViLjAhyfg4O7QZJZxuE5Hzv8d9g0dKW3jR1uFC+x1kbmFtZVdKuIXQxHC95Nx6d/tVJh22+/Ua5oVbgmVub25jZU8Pcm+jeQUPIcAdiboJaSFldmFsdWVYbpttSg+Ee/iHyl9JhgAcjfFYuuyTHsCWo2l0cj0yDENiX2tc6Ttfr49TM6xVIf+e6q54PmVhg/W9XLK1rlA+mMT6Ey4wH8hLTOaRYxMjqdDxLuRTowk4atQscWw8AkWqFV2ESTjz2bRfo6AE4hUS
       - name: TWAP_SIGNER_PRIVATE_KEY
-        value: pGJwa1ggA9U5m6Qbys2bCzwk6ITho8EGHPBXqrnT+mS5/Il/7S9kbmFtZVgnzmYm4ZOHGjJH1AS/fUNf8cxWWiwX3K2Fn+3RizaXn4Y9Xgkpz97GZW5vbmNlT8IC21qrR0acAewIYbURy2V2YWx1ZVhQTENYucN72ZMvDI3Kzf1hiLxZ1C+e8vyD7jpQRyZCgXVlsFoCXBJxw3FwKgR9v+pVG0aYKEe15KRE01Zs77ihlt4nZbmkY0wUsbJTYXSzx0Q=
+        value: pGJwa1gg61f6/fLHm44Be3ERp6jYwIbJ3c3RjxeVIoZgmAfujypkbmFtZVgnTnHn021GlQdXdnLRZ+ANN6mPJPcawt49g+vLJRHU34QL/wE2KLVEZW5vbmNlT/5gKa6FwfiJGRdICtfqKmV2YWx1ZVhSJqG28Ht5iPeAihDbYCd3AqSYeOtoUejVzkFArioeanM/VRr5ErBTb1hsLqL/FcNB+d4VH4VpRqmIJrZttQ/YtwsFjrfWDNUxgs/X32XZmKUV9A==
       - name: TELEGRAM_BOT_TOKEN
-        value: pGJwa1ggZEnNYbORrtGaIgy8YQEbldbBLjdjc3pbUwqRnNPpxVJkbmFtZVgibvDqlo8knESCZmKAdT2pDqQbxMgAZyVTiv3eRYZHHHx0lGVub25jZU83FsOZvm4WBd82Q3r7EcZldmFsdWVYPi6UXKXnDpeTSkWZZbNQVcq2cgrdqXeJ/3G1Jl8sxEgC+4m+eYdY9t7puUkznhHU/6rIVgM91DUA5ikFaA36
+        value: pGJwa1ggFxzf53T41/cOFwCJRTjUqgEKffCzkxoZO0083O9puSxkbmFtZVgiQ2gKJlZ62JwJh7YQKLltJaHOeuBVE3jsWD+upluBi1D1F2Vub25jZU8dm7aV6S511EMBeOj7cu9ldmFsdWVYPjnltJEF3XRbA1nqVEKYUx9t9b70YzPI48TKuHqPBPu5Ror8NwpRREYoW1uaVDdr5Rz04eOMe2CuGP5LjNeN
       - name: TELEGRAM_GROUP_CHAT_ID
-        value: pGJwa1ggYaH9lmP+iGHpveT3gZev4rj/fDYrXUG5Ur4zXgZ/5CNkbmFtZVgmRTOjHp5uTdtH8vk8gpx4NvP43tVHC71uTGRrfg3bI3GwSAyf6eJlbm9uY2VPasumR9lSnw9AA2NMX4xJZXZhbHVlWBsubryzNeuaJ+Qf62Xbgx//uCcM0uhgervCK8w=
+        value: pGJwa1ggNPy9ZSX+0iMUMd1ocfNeIb9S+fiNN/F4YS2aDymCiH9kbmFtZVgmNQaz62qSLyCvUAXEpBfnaFAyOxQpGVv5qD1IE6MO3RAX3iClfv9lbm9uY2VPRrvvpmwcWnrhbWWpEphfZXZhbHVlWBsksyQwQ8eLqlA3CuJI0f0caomEGgRptJI+Lsw=
     machines:
       default:
         provider: oasis1qzc8pldvm8vm3duvdrj63wgvkw34y9ucfcxzetqr
