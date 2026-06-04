@@ -3,84 +3,84 @@ version: 1.0.0
 tee: tdx
 kind: container
 resources:
-    memory: 2048
-    cpus: 1
-    storage:
-        kind: disk-ephemeral
-        size: 3072
+  memory: 2048
+  cpus: 1
+  storage:
+    kind: disk-ephemeral
+    size: 512
 artifacts:
-    firmware: https://github.com/oasisprotocol/oasis-boot/releases/download/v0.6.2/ovmf.tdx.fd#db47100a7d6a0c1f6983be224137c3f8d7cb09b63bb1c7a5ee7829d8e994a42f
-    kernel: https://github.com/oasisprotocol/oasis-boot/releases/download/v0.6.2/stage1.bin#e5d4d654ca1fa2c388bf64b23fc6e67815893fc7cb8b7cfee253d87963f54973
-    stage2: https://github.com/oasisprotocol/oasis-boot/releases/download/v0.6.2/stage2-podman.tar.bz2#b2ea2a0ca769b6b2d64e3f0c577ee9c08f0bb81a6e33ed5b15b2a7e50ef9a09f
-    container:
-        runtime: https://github.com/oasisprotocol/oasis-sdk/releases/download/rofl-containers%2Fv0.8.6/rofl-containers#5aa26a3c5a7e1d284e217959d89b7a620ea7b7fc5079909e25042124ffb384e8
-        compose: compose.yaml
+  firmware: https://github.com/oasisprotocol/oasis-boot/releases/download/v0.6.2/ovmf.tdx.fd#db47100a7d6a0c1f6983be224137c3f8d7cb09b63bb1c7a5ee7829d8e994a42f
+  kernel: https://github.com/oasisprotocol/oasis-boot/releases/download/v0.6.2/stage1.bin#e5d4d654ca1fa2c388bf64b23fc6e67815893fc7cb8b7cfee253d87963f54973
+  stage2: https://github.com/oasisprotocol/oasis-boot/releases/download/v0.6.2/stage2-podman.tar.bz2#b2ea2a0ca769b6b2d64e3f0c577ee9c08f0bb81a6e33ed5b15b2a7e50ef9a09f
+  container:
+    runtime: https://github.com/oasisprotocol/oasis-sdk/releases/download/rofl-containers%2Fv0.8.6/rofl-containers#5aa26a3c5a7e1d284e217959d89b7a620ea7b7fc5079909e25042124ffb384e8
+    compose: compose.yaml
 deployments:
-    default:
-        app_id: rofl1qpv58w4ldquadtz43y59qaqnyj5nqcytkyga3h2x
-        network: mainnet
-        paratime: sapphire
-        admin: robin_staking_vault_twap_oracle
-        oci_repository: rofl.sh/ff832a0d-1ac7-41d0-b535-071d78ea3af6:1780599117
-        trust_root:
-            height: 30292473
-            hash: 7b1cf7b3704e5140fdf9633475382f3a0dcdcec2179f748d0a47a2a9d6859322
-        policy:
-            quotes:
-                pcs:
-                    tcb_validity_period: 30
-                    min_tcb_evaluation_data_number: 18
-                    tdx: {}
-            enclaves: []
-            endorsements:
-                - any: {}
-            fees: endorsing_node
-            max_expiration: 3
-        secrets:
-            - name: SUBGRAPH_AUTH_TOKEN
-              value: pGJwa1ggF1hpfI3hxxnm/Xy2U7fE2Fub6sXNGd34Ufubf+KuBA5kbmFtZVgjt4LFFVWy0Zm+wafNCjfmgibfJRfZspTpAVBkrJuXxHwXsMplbm9uY2VPJC4ryz7WeIvYbnc3M8YUZXZhbHVlWDAWDcIPwPzAwjpDcgMdpihxxm6SBWk/0U//aeFZpRz54KnbAMxkXjpb0JZWGdqrZSA=
-            - name: RPC_URL
-              value: pGJwa1gg7h89lzowDjt2YVetCv/JAsWIWO6xyFSHioAth/q1KgdkbmFtZVdxZSi2ewjjTUtKH98IW6HvUFX9/YKOsmVub25jZU/jrTU0wiw3yiWYJ3FtiHtldmFsdWVYbx1F6BR6x9KfKn7DvDALrGwEeQnUhKTXLojtPAs7PkkVePMU9swjSn6USfFCgh+ri7nzX7TSvWe1w0CMEXFF2PdbRRx3AXbKn+KmugMXdlHs/hPC6ejmZiNcAE7fahpzTQysezv7ZGZBiD9isyh8og==
-            - name: TWAP_SIGNER_PRIVATE_KEY
-              value: pGJwa1ggA9U5m6Qbys2bCzwk6ITho8EGHPBXqrnT+mS5/Il/7S9kbmFtZVgnzmYm4ZOHGjJH1AS/fUNf8cxWWiwX3K2Fn+3RizaXn4Y9Xgkpz97GZW5vbmNlT8IC21qrR0acAewIYbURy2V2YWx1ZVhQTENYucN72ZMvDI3Kzf1hiLxZ1C+e8vyD7jpQRyZCgXVlsFoCXBJxw3FwKgR9v+pVG0aYKEe15KRE01Zs77ihlt4nZbmkY0wUsbJTYXSzx0Q=
-        machines:
-            default:
-                provider: oasis1qzc8pldvm8vm3duvdrj63wgvkw34y9ucfcxzetqr
-                offer: small
-                id: 000000000000010c
-    testnet:
-        app_id: rofl1qpv58w4ldquadtz43y59qaqnyj5nqcytkyga3h2x
-        network: testnet
-        paratime: sapphire
-        admin: robin_staking_vault_twap_oracle
-        oci_repository: rofl.sh/56827579-803e-46ef-94dd-6a7b88bd72df:1779283221
-        trust_root:
-            height: 32161931
-            hash: b63fcc98750230deefbdc8a17d9691f638b29e5b3e173fcd972de4b6943ea35f
-        policy:
-            quotes:
-                pcs:
-                    tcb_validity_period: 30
-                    min_tcb_evaluation_data_number: 18
-                    tdx: {}
-            enclaves:
-                - id: gs5GyU7k5Lb3iJ/1niVxiTaERwY0bZNQ5MpibgtpQkEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
-                - id: GkXyXGqFKjP8H/wB7mGimJMbQvkhVTgnv68OME7SzuUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
-            endorsements:
-                - any: {}
-            fees: endorsing_node
-            max_expiration: 3
-        secrets:
-            - name: SUBGRAPH_AUTH_TOKEN
-              value: pGJwa1ggEy98QNN4UWF6V/a9FSRdyhC+fwhSb+ZmGGzXDgfJLS1kbmFtZVgj5mRmHfMR6KRfMAY8DmCaYOV2IhY00FhPhO1//61riJs4KKVlbm9uY2VPyGX3mf7mDBVuVe5T8WCHZXZhbHVlWDBUFaup8o9cv4opj5T7g0Z5NtN1bheqjmk/kxwgh1si+xte2pJTqwUea1+cP6LwjDc=
-            - name: RPC_URL
-              value: pGJwa1ggXzw0U0hVA/PisDG/gZhyfwtDuPJ3VzGbjV9yepHXtH5kbmFtZVe6/b17o8toJ39K1l+3CgSvhlWIkoZu82Vub25jZU9RxRPWU8GJAShsfUIS5qpldmFsdWVYMW5U4zR58gzHX4RG3DbxK8CAVrmRgdA+Y2nmjQUvUcg+9xPY6R8j37VS4kw3ygoTua0=
-            - name: TWAP_SIGNER_PRIVATE_KEY
-              value: pGJwa1ggU50wE9uuqDz0QycLCq+fZ4ggLfCFZafvM4ARdhWZpwxkbmFtZVgnz75vKwuTSWOMQdcwAB5PDwtB/gXHo684IWbAOg5k8Kstj8s1aFyMZW5vbmNlTx/CcSIjptXZDFFsp1BqpGV2YWx1ZVhS2zApmK0LDLlBKCmafUH+p38htG1yWq17QhkHGoAfuWGt4V/hM+P7aFyxedihMcpHauhd2qYuk/2HnzyA7xQXtUUnZCgA7oi+Pd9dctikl9GeeQ==
-        machines:
-            default:
-                provider: oasis1qp2ens0hsp7gh23wajxa4hpetkdek3swyyulyrmz
-                offer: playground_short
-                id: 000000000000061d
+  default:
+    app_id: rofl1qpv58w4ldquadtz43y59qaqnyj5nqcytkyga3h2x
+    network: mainnet
+    paratime: sapphire
+    admin: robin_staking_vault_twap_oracle
+    oci_repository: rofl.sh/ff832a0d-1ac7-41d0-b535-071d78ea3af6:1780599117
+    trust_root:
+      height: 30292473
+      hash: 7b1cf7b3704e5140fdf9633475382f3a0dcdcec2179f748d0a47a2a9d6859322
+    policy:
+      quotes:
+        pcs:
+          tcb_validity_period: 30
+          min_tcb_evaluation_data_number: 18
+          tdx: {}
+      enclaves: []
+      endorsements:
+        - any: {}
+      fees: endorsing_node
+      max_expiration: 3
+    secrets:
+      - name: SUBGRAPH_AUTH_TOKEN
+        value: pGJwa1ggF1hpfI3hxxnm/Xy2U7fE2Fub6sXNGd34Ufubf+KuBA5kbmFtZVgjt4LFFVWy0Zm+wafNCjfmgibfJRfZspTpAVBkrJuXxHwXsMplbm9uY2VPJC4ryz7WeIvYbnc3M8YUZXZhbHVlWDAWDcIPwPzAwjpDcgMdpihxxm6SBWk/0U//aeFZpRz54KnbAMxkXjpb0JZWGdqrZSA=
+      - name: RPC_URL
+        value: pGJwa1gg7h89lzowDjt2YVetCv/JAsWIWO6xyFSHioAth/q1KgdkbmFtZVdxZSi2ewjjTUtKH98IW6HvUFX9/YKOsmVub25jZU/jrTU0wiw3yiWYJ3FtiHtldmFsdWVYbx1F6BR6x9KfKn7DvDALrGwEeQnUhKTXLojtPAs7PkkVePMU9swjSn6USfFCgh+ri7nzX7TSvWe1w0CMEXFF2PdbRRx3AXbKn+KmugMXdlHs/hPC6ejmZiNcAE7fahpzTQysezv7ZGZBiD9isyh8og==
+      - name: TWAP_SIGNER_PRIVATE_KEY
+        value: pGJwa1ggA9U5m6Qbys2bCzwk6ITho8EGHPBXqrnT+mS5/Il/7S9kbmFtZVgnzmYm4ZOHGjJH1AS/fUNf8cxWWiwX3K2Fn+3RizaXn4Y9Xgkpz97GZW5vbmNlT8IC21qrR0acAewIYbURy2V2YWx1ZVhQTENYucN72ZMvDI3Kzf1hiLxZ1C+e8vyD7jpQRyZCgXVlsFoCXBJxw3FwKgR9v+pVG0aYKEe15KRE01Zs77ihlt4nZbmkY0wUsbJTYXSzx0Q=
+    machines:
+      default:
+        provider: oasis1qzc8pldvm8vm3duvdrj63wgvkw34y9ucfcxzetqr
+        offer: small
+        id: 000000000000010c
+  testnet:
+    app_id: rofl1qpv58w4ldquadtz43y59qaqnyj5nqcytkyga3h2x
+    network: testnet
+    paratime: sapphire
+    admin: robin_staking_vault_twap_oracle
+    oci_repository: rofl.sh/56827579-803e-46ef-94dd-6a7b88bd72df:1779283221
+    trust_root:
+      height: 32161931
+      hash: b63fcc98750230deefbdc8a17d9691f638b29e5b3e173fcd972de4b6943ea35f
+    policy:
+      quotes:
+        pcs:
+          tcb_validity_period: 30
+          min_tcb_evaluation_data_number: 18
+          tdx: {}
+      enclaves:
+        - id: gs5GyU7k5Lb3iJ/1niVxiTaERwY0bZNQ5MpibgtpQkEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+        - id: GkXyXGqFKjP8H/wB7mGimJMbQvkhVTgnv68OME7SzuUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+      endorsements:
+        - any: {}
+      fees: endorsing_node
+      max_expiration: 3
+    secrets:
+      - name: SUBGRAPH_AUTH_TOKEN
+        value: pGJwa1ggEy98QNN4UWF6V/a9FSRdyhC+fwhSb+ZmGGzXDgfJLS1kbmFtZVgj5mRmHfMR6KRfMAY8DmCaYOV2IhY00FhPhO1//61riJs4KKVlbm9uY2VPyGX3mf7mDBVuVe5T8WCHZXZhbHVlWDBUFaup8o9cv4opj5T7g0Z5NtN1bheqjmk/kxwgh1si+xte2pJTqwUea1+cP6LwjDc=
+      - name: RPC_URL
+        value: pGJwa1ggXzw0U0hVA/PisDG/gZhyfwtDuPJ3VzGbjV9yepHXtH5kbmFtZVe6/b17o8toJ39K1l+3CgSvhlWIkoZu82Vub25jZU9RxRPWU8GJAShsfUIS5qpldmFsdWVYMW5U4zR58gzHX4RG3DbxK8CAVrmRgdA+Y2nmjQUvUcg+9xPY6R8j37VS4kw3ygoTua0=
+      - name: TWAP_SIGNER_PRIVATE_KEY
+        value: pGJwa1ggU50wE9uuqDz0QycLCq+fZ4ggLfCFZafvM4ARdhWZpwxkbmFtZVgnz75vKwuTSWOMQdcwAB5PDwtB/gXHo684IWbAOg5k8Kstj8s1aFyMZW5vbmNlTx/CcSIjptXZDFFsp1BqpGV2YWx1ZVhS2zApmK0LDLlBKCmafUH+p38htG1yWq17QhkHGoAfuWGt4V/hM+P7aFyxedihMcpHauhd2qYuk/2HnzyA7xQXtUUnZCgA7oi+Pd9dctikl9GeeQ==
+    machines:
+      default:
+        provider: oasis1qp2ens0hsp7gh23wajxa4hpetkdek3swyyulyrmz
+        offer: playground_short
+        id: 000000000000061d
 tooling:
-    version: 0.18.6
+  version: 0.18.6
