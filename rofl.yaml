@@ -18,6 +18,32 @@ artifacts:
 deployments:
     default:
         app_id: rofl1qpv58w4ldquadtz43y59qaqnyj5nqcytkyga3h2x
+        network: mainnet
+        paratime: sapphire
+        admin: robin_staking_vault_twap_oracle
+        trust_root:
+            height: 30292473
+            hash: 7b1cf7b3704e5140fdf9633475382f3a0dcdcec2179f748d0a47a2a9d6859322
+        policy:
+            quotes:
+                pcs:
+                    tcb_validity_period: 30
+                    min_tcb_evaluation_data_number: 18
+                    tdx: {}
+            enclaves: []
+            endorsements:
+                - any: {}
+            fees: endorsing_node
+            max_expiration: 3
+        secrets:
+            - name: SUBGRAPH_AUTH_TOKEN
+              value: pGJwa1ggF1hpfI3hxxnm/Xy2U7fE2Fub6sXNGd34Ufubf+KuBA5kbmFtZVgjt4LFFVWy0Zm+wafNCjfmgibfJRfZspTpAVBkrJuXxHwXsMplbm9uY2VPJC4ryz7WeIvYbnc3M8YUZXZhbHVlWDAWDcIPwPzAwjpDcgMdpihxxm6SBWk/0U//aeFZpRz54KnbAMxkXjpb0JZWGdqrZSA=
+            - name: RPC_URL
+              value: pGJwa1gg7h89lzowDjt2YVetCv/JAsWIWO6xyFSHioAth/q1KgdkbmFtZVdxZSi2ewjjTUtKH98IW6HvUFX9/YKOsmVub25jZU/jrTU0wiw3yiWYJ3FtiHtldmFsdWVYbx1F6BR6x9KfKn7DvDALrGwEeQnUhKTXLojtPAs7PkkVePMU9swjSn6USfFCgh+ri7nzX7TSvWe1w0CMEXFF2PdbRRx3AXbKn+KmugMXdlHs/hPC6ejmZiNcAE7fahpzTQysezv7ZGZBiD9isyh8og==
+            - name: TWAP_SIGNER_PRIVATE_KEY
+              value: pGJwa1ggA9U5m6Qbys2bCzwk6ITho8EGHPBXqrnT+mS5/Il/7S9kbmFtZVgnzmYm4ZOHGjJH1AS/fUNf8cxWWiwX3K2Fn+3RizaXn4Y9Xgkpz97GZW5vbmNlT8IC21qrR0acAewIYbURy2V2YWx1ZVhQTENYucN72ZMvDI3Kzf1hiLxZ1C+e8vyD7jpQRyZCgXVlsFoCXBJxw3FwKgR9v+pVG0aYKEe15KRE01Zs77ihlt4nZbmkY0wUsbJTYXSzx0Q=
+    testnet:
+        app_id: rofl1qpv58w4ldquadtz43y59qaqnyj5nqcytkyga3h2x
         network: testnet
         paratime: sapphire
         admin: robin_staking_vault_twap_oracle

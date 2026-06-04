@@ -1,14 +1,13 @@
 #Docker-compose setup for OASIS ROFL
 services:
     twap-oracle:
-        image: 'docker.io/0xledgerwing/twap_oracle@sha256:8cb2bb130088a0038a630dc747d057b049934f1de879d4aa6e77985d49494744'
+        image: ''
         platform: linux/amd64
         environment:
             - SUBMIT_ONCHAIN=false
             - PORT=3000,8080
-            - SUBGRAPH_URL=https://gateway.thegraph.com/api/subgraphs/id/9ZVt29ycuVmQTdQPMR5wMDbJ7BJPzYZWQiBPPQG6QTEa
+            - SUBGRAPH_URL=https://gateway.thegraph.com/api/deployments/id/QmaZXNmfnMPgNANBGFry9Z6EVGV1kGJDcdSE5wPGExi2o1
             - ORACLE_ADDRESS=0xf08a02deeB4C7A09fAc8e8C6f8508D724612796f
-            - VAULT_ADDRESS=0xcb7444981296D08dA7161B75378e3773DbF5D806
             - TWAP_SIGNER_PRIVATE_KEY=${TWAP_SIGNER_PRIVATE_KEY}
             - SUBGRAPH_AUTH_TOKEN=${SUBGRAPH_AUTH_TOKEN}
             - RPC_URL=${RPC_URL}
