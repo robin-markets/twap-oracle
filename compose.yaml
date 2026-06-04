@@ -1,7 +1,7 @@
 #Docker-compose setup for OASIS ROFL
 services:
     twap-oracle:
-        image: 'ghcr.io/robin-markets/twap-oracle@sha256:c44bb323845c1c4aa02d6d4f968f0fed6abe130d03bbc9f51a6df8076ef83413'
+        image: 'ghcr.io/robin-markets/twap-oracle@sha256:77ead95b21e4969437aab2cce1e792bbbaf6aaae7fbb0768359ce255583c0c00'
         platform: linux/amd64
         environment:
             - SUBMIT_ONCHAIN=false
