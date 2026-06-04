@@ -12,6 +12,7 @@ export interface Config {
     submitOnchain: boolean;
     rateLimitEnabled: boolean;
     trustProxy: boolean | number | string;
+    isRofl: boolean;
 }
 
 function requireEnv(name: string): string {
@@ -59,5 +60,6 @@ export function loadConfig(): Config {
         submitOnchain: process.env.SUBMIT_ONCHAIN === 'true',
         rateLimitEnabled: process.env.RATE_LIMIT_ENABLED === 'true',
         trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
+        isRofl: process.env.IS_ROFL === 'true',
     };
 }

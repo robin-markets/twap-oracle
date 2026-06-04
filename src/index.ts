@@ -29,3 +29,4 @@ for (const port of config.ports) {
 console.log(`  Oracle:      ${config.oracleAddress}`);
 console.log(`  Trust proxy: ${String(config.trustProxy)}`);
 console.log(`  Rate limit:  ${config.rateLimitEnabled ? 'enabled' : 'disabled'}`);
+console.log(`  ROFL:        ${config.isRofl ? 'yes' : 'no'}`);

@@ -1,7 +1,7 @@
 #Docker-compose setup for OASIS ROFL
 services:
     twap-oracle:
-        image: 'docker.io/0xledgerwing/twap_oracle@sha256:25270ebaf0bbc0bf93bfaf4ab233a685eefceef87d5d06392f91033ccc4d7695'
+        image: 'docker.io/0xledgerwing/twap_oracle@sha256:8cb2bb130088a0038a630dc747d057b049934f1de879d4aa6e77985d49494744'
         platform: linux/amd64
         environment:
             - SUBMIT_ONCHAIN=false
@@ -14,6 +14,7 @@ services:
             - RPC_URL=${RPC_URL}
             - RATE_LIMIT_ENABLED=true
             - TRUST_PROXY=1 # trust one hop (the Oasis proxy in front of 8080)
+            - IS_ROFL=true # running inside the Oasis ROFL TEE container
         ports:
             - '3000:3000'
             - '8080:8080'

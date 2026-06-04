@@ -1,7 +1,13 @@
 const DEDUP_WINDOW_MS = 1 * 60 * 1000;
 const recentMessages = new Map<string, number>();
 
-export async function sendNotification(message: string) {
+// When running inside an Oasis ROFL container, prefix every notification so it's
+// clear the alert originates from the TEE deployment.
+const ROFL_PREFIX = process.env.IS_ROFL === 'true' ? '🔒 [ROFL] ' : '';
+
+export async function sendNotification(rawMessage: string) {
+    const message = `${ROFL_PREFIX}${rawMessage}`;
+
     // Deduplication: skip if same message was sent within the window
     const now = Date.now();
     const lastSent = recentMessages.get(message);
