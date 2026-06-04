@@ -43,6 +43,10 @@ deployments:
         value: pGJwa1gg7h89lzowDjt2YVetCv/JAsWIWO6xyFSHioAth/q1KgdkbmFtZVdxZSi2ewjjTUtKH98IW6HvUFX9/YKOsmVub25jZU/jrTU0wiw3yiWYJ3FtiHtldmFsdWVYbx1F6BR6x9KfKn7DvDALrGwEeQnUhKTXLojtPAs7PkkVePMU9swjSn6USfFCgh+ri7nzX7TSvWe1w0CMEXFF2PdbRRx3AXbKn+KmugMXdlHs/hPC6ejmZiNcAE7fahpzTQysezv7ZGZBiD9isyh8og==
       - name: TWAP_SIGNER_PRIVATE_KEY
         value: pGJwa1ggA9U5m6Qbys2bCzwk6ITho8EGHPBXqrnT+mS5/Il/7S9kbmFtZVgnzmYm4ZOHGjJH1AS/fUNf8cxWWiwX3K2Fn+3RizaXn4Y9Xgkpz97GZW5vbmNlT8IC21qrR0acAewIYbURy2V2YWx1ZVhQTENYucN72ZMvDI3Kzf1hiLxZ1C+e8vyD7jpQRyZCgXVlsFoCXBJxw3FwKgR9v+pVG0aYKEe15KRE01Zs77ihlt4nZbmkY0wUsbJTYXSzx0Q=
+      - name: TELEGRAM_BOT_TOKEN
+        value: pGJwa1ggZEnNYbORrtGaIgy8YQEbldbBLjdjc3pbUwqRnNPpxVJkbmFtZVgibvDqlo8knESCZmKAdT2pDqQbxMgAZyVTiv3eRYZHHHx0lGVub25jZU83FsOZvm4WBd82Q3r7EcZldmFsdWVYPi6UXKXnDpeTSkWZZbNQVcq2cgrdqXeJ/3G1Jl8sxEgC+4m+eYdY9t7puUkznhHU/6rIVgM91DUA5ikFaA36
+      - name: TELEGRAM_GROUP_CHAT_ID
+        value: pGJwa1ggYaH9lmP+iGHpveT3gZev4rj/fDYrXUG5Ur4zXgZ/5CNkbmFtZVgmRTOjHp5uTdtH8vk8gpx4NvP43tVHC71uTGRrfg3bI3GwSAyf6eJlbm9uY2VPasumR9lSnw9AA2NMX4xJZXZhbHVlWBsubryzNeuaJ+Qf62Xbgx//uCcM0uhgervCK8w=
     machines:
       default:
         provider: oasis1qzc8pldvm8vm3duvdrj63wgvkw34y9ucfcxzetqr

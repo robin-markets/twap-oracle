@@ -10,6 +10,8 @@ services:
             - ORACLE_ADDRESS=0xf08a02deeB4C7A09fAc8e8C6f8508D724612796f
             - TWAP_SIGNER_PRIVATE_KEY=${TWAP_SIGNER_PRIVATE_KEY}
             - SUBGRAPH_AUTH_TOKEN=${SUBGRAPH_AUTH_TOKEN}
+            - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+            - TELEGRAM_GROUP_CHAT_ID=${TELEGRAM_GROUP_CHAT_ID}
             - RPC_URL=${RPC_URL}
             - RATE_LIMIT_ENABLED=true
             - TRUST_PROXY=1 # trust one hop (the Oasis proxy in front of 8080)
