@@ -1,12 +1,12 @@
 name: twap-oracle
-version: 1.0.0
+version: 1.0.1
 tee: tdx
 kind: container
 resources:
   memory: 2048
   cpus: 1
   storage:
-    kind: disk-ephemeral
+    kind: disk-persistent
     size: 512
 artifacts:
   firmware: https://github.com/oasisprotocol/oasis-boot/releases/download/v0.6.2/ovmf.tdx.fd#db47100a7d6a0c1f6983be224137c3f8d7cb09b63bb1c7a5ee7829d8e994a42f
