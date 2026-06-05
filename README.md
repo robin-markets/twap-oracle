@@ -96,7 +96,7 @@ The happy path. The subgraph has indexed all requested markets.
     - `twapPriceYes = (effectiveIndex - snapshot) / timeDelta`
     - If the subgraph has resolution data but Robin hasn't finalized: include `marketEndedAt` and `marketEndYesPrice`.
 4. **Verify against Polymarket** (`verification.ts`) — Cross-check subgraph results:
-    - **Resolution check**: If subgraph and Polymarket disagree on whether a market is resolved, send a notification. If Polymarket shows resolved but subgraph doesn't, fill in resolution data from the API.
+    - **Resolution check**: If subgraph and Polymarket disagree on whether a market is resolved, send a notification.
     - **TWAP comparison**: Fetch CLOB price history for the same period and compare. If divergence exceeds the configured threshold, send a warning notification. This is a soft check — subgraph data is used regardless.
 5. **Sign and return** — EIP-712 sign the batch and respond.
 
