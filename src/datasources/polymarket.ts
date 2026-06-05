@@ -4,7 +4,12 @@ import { PRICE_SCALE, type PolymarketMarketInfo } from '../types.js';
 const GAMMA_API_BASE = 'https://gamma-api.polymarket.com';
 const CLOB_API_BASE = 'https://clob.polymarket.com';
 
-const MAX_PRICE_HISTORY_POINTS = 100;
+const MAX_PRICE_HISTORY_POINTS = 200;
+
+// The CLOB prices-history endpoint rejects startTs/endTs ranges wider than 15 days
+// ("interval is too long"). Omitting endTs sidesteps the check, so for wider ranges we drop
+// endTs and discard samples past endTime client-side instead.
+const MAX_HISTORY_RANGE_SECONDS = 15 * 24 * 60 * 60;
 
 interface GammaResponse {
     markets: GammaMarketResponse[];
@@ -148,6 +153,11 @@ export class PolymarketDataSource implements IPolymarketDataSource {
      *
      * Returns the time-weighted average YES price (0 to 1e6 scale).
      *
+     * Ranges wider than 15 days exceed the endpoint's interval limit, so endTs is omitted for
+     * those (the endpoint then returns samples up to the present) and samples past endTime are
+     * discarded below. This matters for resolved markets, where endTime is clamped to the
+     * resolution time and the response would otherwise include post-resolution prices.
+     *
      * @param yesTokenId - CLOB token ID for the YES outcome (from getMarketInfo)
      * @param startTime - Unix timestamp (seconds) for the start of the period
      * @param endTime - Unix timestamp (seconds) for the end of the period
@@ -159,30 +169,37 @@ export class PolymarketDataSource implements IPolymarketDataSource {
         const params = new URLSearchParams({
             market: yesTokenId,
             startTs: startTime.toString(),
-            endTs: endTime.toString(),
             fidelity: fidelity.toString(),
         });
+        // Only constrain endTs when the range is within the endpoint's limit; otherwise omit it
+        // and filter post-endTime samples out of the response.
+        if (endTime - startTime <= MAX_HISTORY_RANGE_SECONDS) {
+            params.set('endTs', endTime.toString());
+        }
 
         const url = `${CLOB_API_BASE}/prices-history?${params}`;
         const response = await fetch(url);
         if (!response.ok) {
-            throw new Error(`CLOB price-history error: ${response.status}`);
+            throw new Error(`CLOB price-history error: ${response.status}; ${await response.text()}`);
         }
 
         const data = (await response.json()) as PriceHistoryResponse;
-        if (!data.history || data.history.length === 0) {
+        // Keep only samples within the requested window. When endTs was omitted the response runs
+        // to the present, so this drops anything after endTime (e.g. post-resolution samples).
+        const points = (data.history ?? []).filter(pt => pt.t <= endTime);
+        if (points.length === 0) {
             throw new Error('No price history data returned');
         }
 
         // Compute time-weighted average price.
         // Each sample holds from its timestamp until the next sample.
-        const points = data.history;
+        // The first sample is extended back to startTime and the last forward to endTime
         let weightedSum = 0;
         let totalDuration = 0;
 
         for (let i = 0; i < points.length; i++) {
             const price = points[i].p;
-            const t0 = points[i].t;
+            const t0 = i === 0 ? startTime : points[i].t;
             const t1 = i + 1 < points.length ? points[i + 1].t : endTime;
             const duration = t1 - t0;
             if (duration > 0) {
