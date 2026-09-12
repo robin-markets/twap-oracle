@@ -1,13 +1,14 @@
 type TokenIndex @entity(immutable: false) {
     id: String! # positionId
-    twapIndex: BigInt! # sum(price(1e6) * seconds)
-    startedAt: BigInt # timestamp
+    twapIndex: BigInt! # sum(price(1e6) * seconds), accumulated since tracking began
+    backfillFrom: BigInt! # start of the not-yet-priced gap; the first fill after tracking began prices [backfillFrom, fill] at its own price
+    startedAt: BigInt # timestamp of the first fill seen since tracking began
     lastUpdatedAt: BigInt # timestamp
     lastPrice: BigInt # 6 decimals
     resolvedAt: BigInt # set at resolution to freeze TWAP
     resolvedPrice: BigInt # 6 decimals
-    isNegRisk: Boolean! # true if the token is a NegRisk token
-    isV2: Boolean! # true if the TokenIndex was created from a V2 exchange contract
+    isNegRisk: Boolean! # true if the token is a NegRisk token (from the MarketInitialized event)
+    isV2: Boolean! # true once a fill from a V2 exchange contract has been seen
 }
 
 type Market @entity(immutable: false) {

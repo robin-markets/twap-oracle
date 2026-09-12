@@ -8,7 +8,7 @@ RobinStakingVault needs to know the average YES/NO price over time to fairly spl
 
 ### Accumulation (subgraph)
 
-The subgraph indexes `OrderFilled` events from the CTF Exchange. Each trade updates a `TokenIndex` entity:
+The subgraph indexes `OrderFilled` events from the CTF Exchange contracts, but only for tokens that belong to a market initialized on Robin. A `TokenIndex` entity is created when the oracle emits `MarketInitialized`; fills for any other Polymarket token are ignored, so the entity count scales with Robin markets rather than with all of Polymarket. Each tracked trade updates the entity:
 
 ```
 twapIndex += lastPrice * (currentTimestamp - lastUpdatedAt)
@@ -18,7 +18,9 @@ lastUpdatedAt = currentTimestamp
 
 `twapIndex` only advances up to the most recent trade. Between trades, price is assumed constant at `lastPrice` — the server extrapolates this gap when computing the final TWAP.
 
-When a market resolves on-chain (`ConditionResolution` event), `closeTwap()` performs a final accumulation from the last trade to resolution time and freezes the index.
+Because no pre-initialization history is indexed, the price that held between initialization and the first tracked fill is unknown. The first fill backfills that gap at its own price: `twapIndex += firstFillPrice * (firstFillTimestamp - backfillFrom)`. `backfillFrom` starts at the initialization timestamp and is moved forward by every `TwapUpdated` snapshot taken before the first fill, since the server prices such windows from its Polymarket fallback and they must not be counted twice.
+
+When a market resolves on-chain (`ConditionResolution` event), `closeTwap()` performs a final accumulation from the last trade to resolution time and freezes the index. Markets that resolved before being initialized on Robin never emit that event while tracked, so the `MarketInitialized` handler reads the payout vector from the ConditionalTokens contract via `eth_call` and, if the condition is already resolved, marks both tokens resolved at the initialization timestamp. The server treats a resolution at or before initialization as "resolved before init" and uses the final price directly.
 
 ### Snapshots
 

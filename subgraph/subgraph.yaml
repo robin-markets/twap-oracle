@@ -126,6 +126,8 @@ dataSources:
           abis:
               - name: IRobinTwapOracle
                 file: ./abis/IRobinTwapOracle.json
+              - name: ConditionalTokens
+                file: ./abis/ConditionalTokens.json
           eventHandlers:
               - event: MarketFinalized(indexed bytes32,uint256,uint256)
                 handler: handleMarketFinalized

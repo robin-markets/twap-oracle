@@ -10,8 +10,17 @@ import { COLLATERAL_ASSET_ID, PRICE_SCALE } from './utils';
 const SIDE_BUY: i32 = 0;
 
 function updateIndexWithPrice(tokenIndex: TokenIndex, price6: BigInt, timestamp: BigInt): void {
-    // On first update, we need to store the last price before we can update the index next time.
     if (tokenIndex.lastUpdatedAt === null || tokenIndex.lastPrice === null) {
+        // First fill since tracking began. The token was only registered at Robin's
+        // MarketInitialized, so no pre-init price is known for the gap between
+        // `backfillFrom` and this fill. Price that gap at this fill's price
+        // (an approximation of the last pre-init price that actually held).
+        // `backfillFrom` is advanced by TwapUpdated snapshots taken before any
+        // fill, so the backfill never reaches behind a snapshot already served.
+        const gap = timestamp.minus(tokenIndex.backfillFrom);
+        if (gap.gt(BigInt.zero())) {
+            tokenIndex.twapIndex = tokenIndex.twapIndex.plus(price6.times(gap));
+        }
         tokenIndex.startedAt = timestamp;
         tokenIndex.lastUpdatedAt = timestamp;
         tokenIndex.lastPrice = price6;
@@ -28,22 +37,23 @@ function updateIndexWithPrice(tokenIndex: TokenIndex, price6: BigInt, timestamp:
     tokenIndex.save();
 }
 
-function applyTrade(tokenId: BigInt, collateralAmount: BigInt, tokenAmount: BigInt, timestamp: BigInt, isNegRisk: boolean, isV2: boolean): void {
+function applyTrade(tokenId: BigInt, collateralAmount: BigInt, tokenAmount: BigInt, timestamp: BigInt, isV2: boolean): void {
     if (tokenAmount.equals(BigInt.zero())) {
         return;
     }
 
-    const positionId = tokenId.toString();
-    let tokenIndex = TokenIndex.load(positionId);
-    if (!tokenIndex) {
-        tokenIndex = new TokenIndex(positionId);
-        tokenIndex.twapIndex = BigInt.zero();
-        tokenIndex.isNegRisk = isNegRisk;
-        tokenIndex.isV2 = isV2;
-    }
+    // Only tokens registered by a Robin MarketInitialized event are tracked.
+    // Fills for any other Polymarket token are ignored, which keeps the entity
+    // count proportional to Robin markets rather than to all of Polymarket.
+    const tokenIndex = TokenIndex.load(tokenId.toString());
+    if (!tokenIndex) return;
 
     // Don't update the index if it has been resolved
     if (tokenIndex.resolvedAt !== null) return;
+
+    if (isV2 && !tokenIndex.isV2) {
+        tokenIndex.isV2 = true;
+    }
 
     const price6 = collateralAmount.times(PRICE_SCALE).div(tokenAmount);
     updateIndexWithPrice(tokenIndex, price6, timestamp);
@@ -55,7 +65,6 @@ function processOrderFilled(
     takerAssetId: BigInt,
     makerAmountFilled: BigInt,
     takerAmountFilled: BigInt,
-    isNegRisk: boolean,
 ): void {
     let tokenId: BigInt;
     let collateralAmount: BigInt;
@@ -73,17 +82,10 @@ function processOrderFilled(
         return;
     }
 
-    applyTrade(tokenId, collateralAmount, tokenAmount, timestamp, isNegRisk, false);
+    applyTrade(tokenId, collateralAmount, tokenAmount, timestamp, false);
 }
 
-function processOrderFilledV2(
-    timestamp: BigInt,
-    side: i32,
-    tokenId: BigInt,
-    makerAmountFilled: BigInt,
-    takerAmountFilled: BigInt,
-    isNegRisk: boolean,
-): void {
+function processOrderFilledV2(timestamp: BigInt, side: i32, tokenId: BigInt, makerAmountFilled: BigInt, takerAmountFilled: BigInt): void {
     // V2 only emits OrderFilled for trades against collateral (outcome token <-> collateral).
     // BUY:  maker paid collateral, taker delivered the token -> collateral = makerAmountFilled, token = takerAmountFilled
     // SELL: maker paid the token, taker paid collateral     -> collateral = takerAmountFilled, token = makerAmountFilled
@@ -97,7 +99,7 @@ function processOrderFilledV2(
         tokenAmount = makerAmountFilled;
     }
 
-    applyTrade(tokenId, collateralAmount, tokenAmount, timestamp, isNegRisk, true);
+    applyTrade(tokenId, collateralAmount, tokenAmount, timestamp, true);
 }
 
 export function handleOrderFilled(event: OrderFilled): void {
@@ -107,7 +109,6 @@ export function handleOrderFilled(event: OrderFilled): void {
         event.params.takerAssetId,
         event.params.makerAmountFilled,
         event.params.takerAmountFilled,
-        false,
     );
 }
 
@@ -118,7 +119,6 @@ export function handleNegRiskOrderFilled(event: NegRiskOrderFilled): void {
         event.params.takerAssetId,
         event.params.makerAmountFilled,
         event.params.takerAmountFilled,
-        true,
     );
 }
 
@@ -129,7 +129,6 @@ export function handleOrderFilledV2(event: OrderFilledV2): void {
         event.params.tokenId,
         event.params.makerAmountFilled,
         event.params.takerAmountFilled,
-        false,
     );
 }
 
@@ -140,6 +139,5 @@ export function handleNegRiskOrderFilledV2(event: NegRiskOrderFilledV2): void {
         event.params.tokenId,
         event.params.makerAmountFilled,
         event.params.takerAmountFilled,
-        true,
     );
 }
