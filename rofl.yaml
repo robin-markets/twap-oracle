@@ -1,5 +1,5 @@
 name: twap-oracle
-version: 1.0.1
+version: 1.0.2
 tee: tdx
 kind: container
 resources:
@@ -32,15 +32,15 @@ deployments:
           min_tcb_evaluation_data_number: 18
           tdx: {}
       enclaves:
-        - id: eSlCPQr8RkQif655JeQzewRdmDUXwQdz2Aa26wRSkxkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
-        - id: Jvna+0b6Q0nAw0ecjkG4noU8eoH5oqUMXf40/tWJ/DwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+        - id: X5IUBPAVvJJpx3O5Md9o+TUXEM67s3vpGnl2yIb9KQsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+        - id: DTpxnSRYrS5YRkNQnsbHwCzrWS1EUFa8+LYIy8dRaIgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
       endorsements:
         - any: {}
       fees: endorsing_node
       max_expiration: 3
     secrets:
       - name: SUBGRAPH_AUTH_TOKEN
-        value: pGJwa1ggZ2W9+1DvNSIGXqiTczU1zNNvbV3vImf1FdPRRLB8Sj9kbmFtZVgjGtI+NbMixNooYBy2u2VqaQNLVp5jwVmh+7WIEq+/Ycgpj6Nlbm9uY2VPYrJ9Xo78aHkN4THb7TMYZXZhbHVlWDD0Dvl72xvUMoI97AtDuTGH4Gk9OzXchCT7poJbAFjw0wQArKJ4mHfN1CxgdZOAhw0=
+        value: pGJwa1ggfBtMWjw31lN1oodjQ49VRqHeX/Bb4WkiUxIhYUMGmz9kbmFtZVgjQ6o3ZIuJH5xHHfazV8cqx5pKzypaqdujAVd5BbHv2tgpLRFlbm9uY2VPM5Ks/eHGZ+KyuJCBq+x3ZXZhbHVlWCl7TfaOujEd788SV/fcexAYTOYMlIxyuJoukXEsozOHeA9N6BjYnSj24w==
       - name: RPC_URL
         value: pGJwa1ggVqhrHomW8eidOFJVZDfk/EZogEGJhRw2sPAX6VfK3jBkbmFtZVdp1Ggx8d4Mi796YqhWRJP7aNgVPZ28x2Vub25jZU8GR/spP1CUavBth4DxspdldmFsdWVYZvypVOwX6M+8M2bvcLePQf2cwe7qxgN9ro1hMVcFeH+kL0uDSUHI9Ez4AOuTNB7oP7YZAXdSHFEx7cl8GL+BYO5lB1uUhINS60SMvuCxIPgJIpyveCmuDYKm+iSQWR6ZOOBzomS7jg==
       - name: TWAP_SIGNER_PRIVATE_KEY

@@ -6,7 +6,7 @@ services:
         environment:
             - SUBMIT_ONCHAIN=false
             - PORT=3000,8080
-            - SUBGRAPH_URL=https://gateway.thegraph.com/api/deployments/id/QmaZXNmfnMPgNANBGFry9Z6EVGV1kGJDcdSE5wPGExi2o1
+            - SUBGRAPH_URL=https://api.goldsky.com/api/public/project_cmtyhl7rcpbyu01wehug15kg4/subgraphs/robin-markets-twap-subgraph/2.0.0/gn
             - ORACLE_ADDRESS=0xf08a02deeB4C7A09fAc8e8C6f8508D724612796f
             - TWAP_SIGNER_PRIVATE_KEY=${TWAP_SIGNER_PRIVATE_KEY}
             - SUBGRAPH_AUTH_TOKEN=${SUBGRAPH_AUTH_TOKEN}
