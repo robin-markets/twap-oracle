@@ -1,5 +1,5 @@
 name: twap-oracle
-version: 1.0.2
+version: 1.0.4
 tee: tdx
 kind: container
 resources:
