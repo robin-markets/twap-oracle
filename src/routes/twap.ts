@@ -309,8 +309,13 @@ async function handleSubgraphData(
                 if (info.yesPrice === undefined) continue;
                 fallbackMap.set(id, BigInt(Math.round(info.yesPrice * Number(PRICE_SCALE))));
             }
-        } catch {
-            // Best-effort — markets will use DEFAULT_PRICE
+        } catch (err) {
+            // Best-effort: a market that still needs a fallback price after this fails in
+            // computeTwapData below (only the timeDelta <= 0 branch falls back to DEFAULT_PRICE).
+            sendNotification(
+                `[WARN] Polymarket fallback price fetch failed for ${needsFallbackIds.length} market(s): ` +
+                    `${err instanceof Error ? err.message : String(err)}`,
+            ).catch(() => {});
         }
     }
 

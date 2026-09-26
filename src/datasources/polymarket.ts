@@ -101,10 +101,19 @@ export class PolymarketDataSource implements IPolymarketDataSource {
             const prices = JSON.parse(market.outcomePrices) as string[];
             const tokenIds = JSON.parse(market.clobTokenIds) as string[];
 
-            const yesIdx = outcomes.findIndex(o => o.toLowerCase() === 'yes');
-            if (yesIdx === -1) continue;
+            // Robin defines YES as outcome slot 0 (CTF index set 1) and NO as slot 1 regardless of
+            // the labels: sports markets use team names ("Georgia"/"Oklahoma"), crypto markets
+            // "Up"/"Down". Matching on a literal "Yes" label dropped every such market from this
+            // map, which left the fallback price undefined and failed the TWAP computation.
+            if (outcomes.length !== 2 || prices.length !== 2 || tokenIds.length !== 2) {
+                sendNotification(`[WARN] Market ${market.conditionId} is not binary on Polymarket (outcomes=${market.outcomes}); skipping`).catch(
+                    () => {},
+                );
+                continue;
+            }
 
-            const noIdx = yesIdx === 0 ? 1 : 0;
+            const yesIdx = 0;
+            const noIdx = 1;
             const rawYes = parseFloat(prices[yesIdx]);
             const rawNo = parseFloat(prices[noIdx]);
 

@@ -97,7 +97,9 @@ export function computeTwapData(market: SubgraphMarket, endTimestamp: bigint, fa
 
     if (exchangeDelta <= 0n && yesToken.lastPrice === null) {
         // No trades indexed at all — use fallback
-        if (fallbackPrice === undefined) throw new TwapError('Fallback price is undefined where the subgraph has indexed trades', 500);
+        if (fallbackPrice === undefined) {
+            throw new TwapError('No fills indexed for this market since Robin initialization and no Polymarket fallback price available', 500);
+        }
         twapPriceYes = fallbackPrice;
     } else if (exchangeDelta <= 0n) {
         twapPriceYes = BigInt(yesToken.lastPrice!);
