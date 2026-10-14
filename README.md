@@ -90,7 +90,7 @@ POST /twap { conditionIds: string[] }
 The happy path. The subgraph has indexed all requested markets.
 
 1. **Fetch subgraph data** — GraphQL query returns market entities with token indexes, snapshots, and resolution state. The query also fetches `_meta.block.timestamp` to determine how far behind the subgraph is. If the lag exceeds `TWAP_GRACE_PERIOD_SECONDS`, the subgraph is considered stale and the server falls back to Flow C. Otherwise, the subgraph's block timestamp is used as `endTimestamp` in the signed package, ensuring consistency between the indexed data and the time boundary.
-2. **Fallback prices** — For markets with no exchange trades, fetch the current YES price from the Polymarket Gamma API as a fallback.
+2. **Fallback prices** — For markets with no exchange trades, fetch the current YES price from the Polymarket Gamma API as a fallback. Markets Gamma reports with a protocol `version` other than `v1` (Polymarket Protocol V2, whose trading runs on ExchangeV3 instead of the CTF exchanges the subgraph indexes) are skipped with an `[ALERT]` notification, as are markets without CTF token ids — the affected market then fails individually instead of taking the whole batch down.
 3. **Compute TWAP** (`twap-computation.ts`) — For each market:
     - If Robin already finalized: return `required: false` (no signature needed).
     - Clamp calculation end to resolution time if the subgraph has seen resolution.

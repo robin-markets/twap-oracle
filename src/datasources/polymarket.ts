@@ -16,9 +16,11 @@ interface GammaResponse {
 }
 interface GammaMarketResponse {
     conditionId: string;
+    /** "v1" = Conditional Tokens (what the subgraph indexes), "v2" = Polymarket Protocol V2 (PositionManager / ExchangeV3). */
+    version?: string | null;
     outcomes: string; // JSON string like '["Yes", "No"]'
     outcomePrices: string; // JSON string like '["0.55","0.45"]'
-    clobTokenIds: string; // JSON string like '["123...", "456..."]'
+    clobTokenIds: string | null; // JSON string like '["123...", "456..."]'; null on Protocol V2 markets
     active: boolean;
     closed: boolean;
     closedTime: string | null; // e.g. "2021-10-05 03:54:25+00"
@@ -97,6 +99,22 @@ export class PolymarketDataSource implements IPolymarketDataSource {
         const result = new Map<string, PolymarketMarketInfo>();
 
         for (const market of markets) {
+            // Robin only tracks Conditional Tokens markets: the subgraph follows the CTF exchanges and the
+            // CLOB fallback needs CTF token ids. A market Gamma reports as another protocol version has
+            // moved its trading elsewhere (Polymarket Protocol V2), so its price data here would be stale.
+            if (market.version != null && market.version !== 'v1') {
+                sendNotification(
+                    `[ALERT] Market ${market.conditionId} reports Polymarket protocol version "${market.version}" (not Conditional Tokens / v1): ` +
+                        'its fills no longer flow through the CTF exchanges the TWAP subgraph indexes; skipping Polymarket fallback data',
+                ).catch(() => {});
+                continue;
+            }
+            if (typeof market.outcomes !== 'string' || typeof market.outcomePrices !== 'string' || typeof market.clobTokenIds !== 'string') {
+                sendNotification(
+                    `[WARN] Market ${market.conditionId} has no CTF outcome data on Polymarket (clobTokenIds=${market.clobTokenIds}); skipping`,
+                ).catch(() => {});
+                continue;
+            }
             const outcomes = JSON.parse(market.outcomes) as string[];
             const prices = JSON.parse(market.outcomePrices) as string[];
             const tokenIds = JSON.parse(market.clobTokenIds) as string[];
