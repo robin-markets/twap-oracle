@@ -1,5 +1,5 @@
 # Multi-stage build for TypeScript indexer
-FROM node:25-alpine AS base
+FROM node:26-alpine AS base
 
 # Set working directory
 WORKDIR /app
@@ -19,7 +19,7 @@ ENV GENERATE_SOURCEMAP=false
 RUN npm run build
 
 # Production stage
-FROM node:25-alpine AS production
+FROM node:26-alpine AS production
 
 # Install curl for healthcheck
 RUN apk add --no-cache curl
