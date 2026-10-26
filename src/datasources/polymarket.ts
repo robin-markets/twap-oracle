@@ -2,14 +2,15 @@ import { sendNotification } from '../services/notification.js';
 import { PRICE_SCALE, type PolymarketMarketInfo } from '../types.js';
 
 const GAMMA_API_BASE = 'https://gamma-api.polymarket.com';
-const CLOB_API_BASE = 'https://clob.polymarket.com';
+const DATA_API_BASE = 'https://data-api.polymarket.com/v2';
 
-const MAX_PRICE_HISTORY_POINTS = 200;
-
-// The CLOB prices-history endpoint rejects startTs/endTs ranges wider than 15 days
-// ("interval is too long"). Omitting endTs sidesteps the check, so for wider ranges we drop
-// endTs and discard samples past endTime client-side instead.
-const MAX_HISTORY_RANGE_SECONDS = 15 * 24 * 60 * 60;
+// The data-api prices-history endpoint caps explicit `start`/`end` windows at 15 days.
+// Wider windows are only served by `interval=max`, which returns
+// the market's whole life: buckets narrower than 3h then cover just the trailing 30 days, so
+// whole-life requests use 3h buckets and the window is cut client-side.
+const MAX_WINDOW_SECONDS = 15 * 24 * 60 * 60;
+const WHOLE_LIFE_BUCKET_SECONDS = 3 * 60 * 60;
+const PRICE_HISTORY_PAGE_LIMIT = 10000; // data-api cap per request
 
 interface GammaResponse {
     markets: GammaMarketResponse[];
@@ -31,8 +32,17 @@ interface PriceHistoryPoint {
     p: number;
 }
 
-interface PriceHistoryResponse {
-    history: PriceHistoryPoint[];
+/** One row of the data-api `GET /v2/prices-history` endpoint. */
+interface DataApiPricePoint {
+    timestamp: number;
+    price: number;
+    /** 0 for an exact tick (terminal observation, settlement payout), otherwise the bucket width. */
+    resolution_seconds: number;
+}
+
+interface DataApiPriceHistoryResponse {
+    data: DataApiPricePoint[] | null;
+    pagination: { has_more: boolean; next_cursor: string | null };
 }
 
 /**
@@ -41,7 +51,7 @@ interface PriceHistoryResponse {
  * - getMarketInfo: current price + resolution status from gamma-api.
  *   Used as fallback price for edge cases and to verify subgraph resolution data.
  *
- * - getTwapData: historical TWAP computed from CLOB price-history samples.
+ * - getTwapData: historical TWAP computed from data-api price-history samples.
  *   Primary failover when the subgraph is down or returning stale data.
  */
 export interface IPolymarketDataSource {
@@ -175,45 +185,62 @@ export class PolymarketDataSource implements IPolymarketDataSource {
     }
 
     /**
-     * Compute TWAP from CLOB price history samples.
-     * GET https://clob.polymarket.com/prices-history?market=<tokenId>&startTs=<start>&endTs=<end>&fidelity=1
+     * Fetch one outcome token's price series from the data-api, oldest first, following the cursor
+     * across pages. `params` carries `token_id` plus the window (`start`/`end` or `interval`).
+     */
+    private async fetchPriceHistory(params: URLSearchParams): Promise<PriceHistoryPoint[]> {
+        const points: PriceHistoryPoint[] = [];
+        let cursor: string | null = null;
+        do {
+            const page = new URLSearchParams(params);
+            if (cursor) page.set('cursor', cursor);
+            else page.set('limit', PRICE_HISTORY_PAGE_LIMIT.toString());
+
+            const response = await fetch(`${DATA_API_BASE}/prices-history?${page}`);
+            if (!response.ok) {
+                throw new Error(`Price-history error: ${response.status}; ${await response.text()}`);
+            }
+            const body = (await response.json()) as DataApiPriceHistoryResponse;
+            for (const row of body.data ?? []) points.push({ t: row.timestamp, p: row.price });
+            cursor = body.pagination.next_cursor;
+        } while (cursor);
+        return points;
+    }
+
+    /**
+     * Compute TWAP from data-api price history samples.
+     * GET https://data-api.polymarket.com/v2/prices-history?token_id=<tokenId>&start=<start>&end=<end>
      *
      * Returns the time-weighted average YES price (0 to 1e6 scale).
      *
-     * Ranges wider than 15 days exceed the endpoint's interval limit, so endTs is omitted for
-     * those (the endpoint then returns samples up to the present) and samples past endTime are
-     * discarded below. This matters for resolved markets, where endTime is clamped to the
-     * resolution time and the response would otherwise include post-resolution prices.
+     * Windows up to 15 days are requested explicitly without `bucket_seconds`: the server picks the
+     * finest grain that still covers the window. Wider windows exceed the endpoint's
+     * cap, so the market's whole life is fetched at 3h buckets (the finest whole-life grain) and
+     * cut to [startTime, endTime] here. Resolved markets end with a settlement point at the payout
+     * price just before resolution; clamping endTime to the resolution time keeps it, weighted at
+     * most like one bucket.
      *
      * @param yesTokenId - CLOB token ID for the YES outcome (from getMarketInfo)
      * @param startTime - Unix timestamp (seconds) for the start of the period
      * @param endTime - Unix timestamp (seconds) for the end of the period
      */
     async getTwapData(yesTokenId: string, startTime: number, endTime: number): Promise<{ twapPriceYes: bigint }> {
-        const durationMinutes = (endTime - startTime) / 60;
-        const fidelity = Math.max(1, Math.ceil(durationMinutes / MAX_PRICE_HISTORY_POINTS));
-
-        const params = new URLSearchParams({
-            market: yesTokenId,
-            startTs: startTime.toString(),
-            fidelity: fidelity.toString(),
-        });
-        // Only constrain endTs when the range is within the endpoint's limit; otherwise omit it
-        // and filter post-endTime samples out of the response.
-        if (endTime - startTime <= MAX_HISTORY_RANGE_SECONDS) {
-            params.set('endTs', endTime.toString());
+        const params = new URLSearchParams({ token_id: yesTokenId });
+        if (endTime - startTime <= MAX_WINDOW_SECONDS) {
+            params.set('start', startTime.toString());
+            params.set('end', endTime.toString());
+        } else {
+            params.set('interval', 'max');
+            params.set('bucket_seconds', WHOLE_LIFE_BUCKET_SECONDS.toString());
         }
+        const history = await this.fetchPriceHistory(params);
 
-        const url = `${CLOB_API_BASE}/prices-history?${params}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`CLOB price-history error: ${response.status}; ${await response.text()}`);
-        }
-
-        const data = (await response.json()) as PriceHistoryResponse;
-        // Keep only samples within the requested window. When endTs was omitted the response runs
-        // to the present, so this drops anything after endTime (e.g. post-resolution samples).
-        const points = (data.history ?? []).filter(pt => pt.t <= endTime);
+        // Cut the series to the requested window. A whole-life series starts long before startTime:
+        // the last sample at or before startTime is the price in force there, so it is carried
+        // forward from startTime instead of extending the first in-window sample backwards.
+        const inWindow = history.filter(pt => pt.t > startTime && pt.t <= endTime);
+        const atStart = history.filter(pt => pt.t <= startTime).pop();
+        const points = atStart ? [{ t: startTime, p: atStart.p }, ...inWindow] : inWindow;
         if (points.length === 0) {
             throw new Error('No price history data returned');
         }

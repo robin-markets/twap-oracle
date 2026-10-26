@@ -99,7 +99,7 @@ The happy path. The subgraph has indexed all requested markets.
     - If the subgraph has resolution data but Robin hasn't finalized: include `marketEndedAt` and `marketEndYesPrice`.
 4. **Verify against Polymarket** (`verification.ts`) — Cross-check subgraph results:
     - **Resolution check**: If subgraph and Polymarket disagree on whether a market is resolved, send a notification.
-    - **TWAP comparison**: Fetch CLOB price history for the same period and compare. If divergence exceeds the configured threshold, send a warning notification. This is a soft check — subgraph data is used regardless.
+    - **TWAP comparison**: Fetch Polymarket data-api price history for the same period and compare. If divergence exceeds the configured threshold, send a warning notification. This is a soft check — subgraph data is used regardless.
 5. **Sign and return** — EIP-712 sign the batch and respond.
 
 ### Flow B — Subgraph available, some markets missing
@@ -117,14 +117,14 @@ Fallback path when the subgraph is down, returning errors, or lagging behind by 
 1. **Batch RPC** (`rpc.ts`) — a single `batchGetMarketState` view call on the oracle returns market state and `isTwapSignatureRequired` for all markets at once.
 2. **Categorize markets** (`alternative-twap.ts`) — Markets are split into three groups:
     - **Already finalized** in the contract (`marketEndedAt > 0`): return `required: false`.
-    - **TWAP signature required**: needs full CLOB-based TWAP computation.
+    - **TWAP signature required**: needs full price-history-based TWAP computation.
     - **TWAP not required, not yet finalized**: check Polymarket for resolution status. If resolved, compute a full TWAP package with finalization data (so the contract can finalize the market). If not resolved, return `required: false`.
 3. **Batch Polymarket** — Fetch market info (prices, resolution status) from the Gamma API for all markets that need data.
 4. **Per-market TWAP** — For each market needing computation:
     - Clamp the calculation end to Polymarket's resolution timestamp if resolved.
-    - Fetch CLOB price history (`/prices-history`) and compute a time-weighted average.
+    - Fetch Polymarket data-api price history (`/v2/prices-history`) and compute a time-weighted average. Windows up to 15 days are requested explicitly; longer ones fetch the market's whole life at 3h buckets and cut it client-side (the endpoint caps explicit windows at 15 days).
     - If the market is resolved on Polymarket but not on-chain, include resolution data.
-5. **Concurrency** — CLOB API calls run in chunks of 15 (`CLOB_CONCURRENCY`) to avoid rate limiting.
+5. **Concurrency** — price-history calls run in chunks of 15 (`PRICE_HISTORY_CONCURRENCY`) to avoid rate limiting.
 6. **Per-market errors** — Individual market failures are collected; the request returns HTTP 500 with a `failed` array listing which conditionIds could not be computed.
 
 ## Per-Market Error Reporting
@@ -137,7 +137,7 @@ If any market fails computation, the API returns HTTP 500 with:
     "failed": [
         {
             "conditionId": "0xabc...",
-            "error": "CLOB history call failed"
+            "error": "price-history call failed"
         }
     ]
 }
@@ -154,7 +154,7 @@ On success (all markets computed), the response is HTTP 200 with `failed: []`.
 | **Subgraph**                    | Exchange twapIndex, snapshots, resolution data from on-chain events      | Primary source (Flow A/B)                       |
 | **RPC (`batchGetMarketState`)** | Contract market state: lastTwapUpdate, accumulators, finalization status | Fallback (Flow B/C)                             |
 | **Polymarket Gamma API**        | Current spot prices, resolution status, CLOB token IDs                   | Fallback prices, verification, alternative flow |
-| **Polymarket CLOB API**         | Historical price samples (`/prices-history`)                             | Alternative TWAP computation (Flow B/C)         |
+| **Polymarket Data API**         | Historical price samples (`/v2/prices-history`)                          | Alternative TWAP computation (Flow B/C)         |
 
 A request-scoped `CachedPolymarketDataSource` wraps the Gamma API to deduplicate batch fetches across different stages of a single request (fallback lookup, verification, alternative computation).
 

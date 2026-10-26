@@ -4,7 +4,7 @@ import type { RpcMarketState } from '../datasources/rpc.js';
 import type { IPolymarketDataSource } from '../datasources/polymarket.js';
 import { PRICE_SCALE, TwapError, type PolymarketMarketInfo, type TwapData } from '../types.js';
 
-const CLOB_CONCURRENCY = 15;
+const PRICE_HISTORY_CONCURRENCY = 15;
 const NO_ACTION_TWAP_DATA: Omit<TwapData, 'conditionId'> = {
     required: false,
     startTimestamp: 0n,
@@ -22,7 +22,7 @@ export interface AlternativeTwapBatchResult {
 
 /**
  * Compute TwapData for a single market from pre-loaded data.
- * Needs polymarket only for the per-market getTwapData (CLOB price history) call.
+ * Needs polymarket only for the per-market getTwapData (data-api price history) call.
  *
  * @param marketInfo - undefined when Polymarket was unreachable
  */
@@ -67,7 +67,7 @@ async function computeAlternativeTwapData(
             twapPriceYes = twapResult.twapPriceYes;
         } catch (error) {
             throw new TwapError(
-                `Cannot compute TWAP for market ${conditionId}: CLOB history call failed: ${error instanceof Error ? error.message : String(error)}`,
+                `Cannot compute TWAP for market ${conditionId}: price-history call failed: ${error instanceof Error ? error.message : String(error)}`,
                 500,
             );
         }
@@ -120,7 +120,7 @@ async function computeAlternativeTwapData(
  * 1. Batch RPC: batchGetMarketState for state + isTwapSignatureRequired (single call)
  * 2. Early return markets that don't need TWAP signature
  * 3. Batch Polymarket: getMarketInfoBatch for remaining markets
- * 4. Per-market: compute TWAP from CLOB price history (no batch API for this)
+ * 4. Per-market: compute TWAP from data-api price history (no batch API for this)
  */
 export async function computeAlternativeTwapDataBatch(
     conditionIds: string[],
@@ -165,7 +165,7 @@ export async function computeAlternativeTwapDataBatch(
     }
 
     // 3. Batch Polymarket for all markets that need data (both TWAP computation
-    // and finalization check markets need Polymarket info for CLOB history / resolution)
+    // and finalization check markets need Polymarket info for price history / resolution)
     const allNeedPolymarket = [...needsTwapComputation, ...needsFinalizationCheck];
     if (allNeedPolymarket.length === 0) return { results, failed, uninitialized };
 
@@ -182,8 +182,8 @@ export async function computeAlternativeTwapDataBatch(
     }
 
     // 5. Compute TWAP for remaining markets (getTwapData calls run in chunks)
-    for (let i = 0; i < needsTwapComputation.length; i += CLOB_CONCURRENCY) {
-        const chunk = needsTwapComputation.slice(i, i + CLOB_CONCURRENCY);
+    for (let i = 0; i < needsTwapComputation.length; i += PRICE_HISTORY_CONCURRENCY) {
+        const chunk = needsTwapComputation.slice(i, i + PRICE_HISTORY_CONCURRENCY);
         const settled = await Promise.allSettled(
             chunk.map(async id => {
                 const rpcData = rpcBatch.get(id as Hex)!;
